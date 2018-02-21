@@ -7,6 +7,8 @@ end
 
 ##############################################################################
 
+### Access
+
 index(rt::RowTable) = rt.colindex
 rows(rt::RowTable) = rt.rows
 Base.names(rt::RowTable) = _names(index(rt))
@@ -19,6 +21,12 @@ _numberofrows(rt::RowTable) = isempty(rows(rt)) ? 0 : length(rows(rt))
 Base.size(rt::RowTable,n::Integer) = n == 1 ? _numberofrows(rt) : n == 2 ? _numberofcols(rt) :
     error(ArgumentError, ": RowTables have only two dimensions")
 
+### Basic ops
+
+Base.:(==)(rt1::RowTable, rt2::RowTable) = (index(rt1) == index(rt2) && rows(rt1) == rows(rt2))
+
+### Constructors
+
 newrows(n::Integer=0) = Vector{Any}(n)
 
 RowTable() = RowTable(newrows(),CIndex())
@@ -26,8 +34,7 @@ RowTable() = RowTable(newrows(),CIndex())
 ## We did not use the type information afterall.
 
 if VERSION >=  v"0.7.0-DEV"
-
-    const _NameTypes = Union{AbstractVector{S} where S<:Union{Symbol,AbstractString}}
+     const _NameTypes = Union{AbstractVector{S} where S<:Union{Symbol,AbstractString}}
 else
     const _NameTypes = Union{AbstractVector{S} where S<:Union{Symbol,AbstractString},
                          Base.KeyIterator{T} where T<:AbstractDict{V} where V <: Union{W,Symbol} where W <: AbstractString}
@@ -69,11 +76,22 @@ function RowTable(a::AbstractVector,keynames::_NameTypes)
     _RowTable(typeof(first(a)),a,keynames)
 end
 
-Base.:(==)(rt1::RowTable, rt2::RowTable) = (index(rt1) == index(rt2) && rows(rt1) == rows(rt2))
-#Base.:(==)(rt1::RowTable, rt2::RowTable) = (rt1.colindex == rt2.colindex && rt1.rows == rt2.rows)
+function RowTable(df::DataFrames.DataFrame; tuples=false)
+    (nr,nc) = size(df)
+    arr = Any[]
+    if tuples
+        for ri in 1:nr
+            push!(arr, ([df[ri,ci] for ci in 1:nc]...))
+        end
+    else
+        for ri in 1:nr
+            push!(arr, [df[ri,ci] for ci in 1:nc])
+        end
+    end
+    RowTable(arr, copy(names(df)))
+end
 
 ### Info
-
 
 function Base.summary(rt::RowTable) # -> String
     nrows, ncols = size(rt)
@@ -153,14 +171,48 @@ end
 
 DataFrames.DataFrame(rt::RowTable) = DataFrames.DataFrame(tocolumns(rt),_names(rt))
 
+struct RowDict{T}
+    dict::OrderedDict{T}
+end
+
+struct RowArr{T}
+    arr::Vector{T}
+end
+
+function rowdict(rt::RowTable, rowind::Integer)
+    od = OrderedDict{Symbol,Any}()
+    for (colind::Integer,cname::Symbol) in enumerate(_names(rt))
+        od[cname] = rows(rt)[rowind][colind]
+    end
+    RowDict(od)
+end
+
+function rowdict(rt::RowTable, rowinds::AbstractVector)
+    ar = Any[]
+    for rowind in rowinds
+        push!(ar, rowdict(rt,rowind).dict)
+    end
+    RowArr(ar)
+end
+
+
+function Base.show(io::IO, rd::RowDict)
+    indent = 4
+    JSON.Writer.print(io,rd.dict,indent)
+end 
+
+function Base.show(io::IO, ar::RowArr)
+    indent = 4
+    JSON.Writer.print(io,ar.arr,indent)
+end 
+
+
 ### Transform
 
-## These only work with integer indices
 for f in (:deleteat!, :push!, :insert!, :unshift!, :shift!, :pop!, :append!, :prepend!, :splice!)
     @eval begin
         (Base.$f)(rt::RowTable,args...) = (($f)(rows(rt),args...); rt)
     end
 end
-
 
 DataFrames.rename!(rt::RowTable,d) = (rename!(index(rt),d); rt)

@@ -1,11 +1,12 @@
-#__precompile__()
+__precompile__()
 
 module RowTables
 
 using Compat
 import DataFrames
 import DataFrames.rename!
-
+import DataStructures.OrderedDict
+using JSON
 
 if VERSION >= v"0.7.0-DEV.2738"
     const kwpairs = pairs
@@ -20,10 +21,11 @@ if VERSION >= v"0.7.0-DEV.3052"
 end
 
 
-export AbstractRowTable, RowTable, rows, rename!
+export AbstractRowTable, RowTable, rows, rename!, rowdict
 
 include("index.jl")
 include("abstractrowtable.jl")
 include("rowtable.jl")
+include("sort.jl")
 
 end  # module RowTables
