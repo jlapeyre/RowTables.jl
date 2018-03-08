@@ -9,10 +9,12 @@ end
 
 ### Access
 
-index(rt::RowTable) = rt.colindex
-rows(rt::RowTable) = rt.rows
-Base.names(rt::RowTable) = _names(index(rt))
-_names(rt::RowTable) = _names(index(rt))
+@inline _index(rt::RowTable) = rt.colindex
+@inline colindex(rt::RowTable,ci) = _index(rt)[ci]
+#_index(rt::RowTable) = rt.colindex
+@inline rows(rt::RowTable) = rt.rows
+Base.names(rt::RowTable) = _names(_index(rt))
+_names(rt::RowTable) = _names(_index(rt))
 Base.length(rt::RowTable) = _numberofcols(rt)
 Base.size(rt::RowTable) =   _numberofrows(rt), _numberofcols(rt)
 _numberofcols(rt::RowTable) = length(_names(rt))
@@ -23,11 +25,11 @@ Base.size(rt::RowTable,n::Integer) = n == 1 ? _numberofrows(rt) : n == 2 ? _numb
 
 ### Basic ops
 
-Base.:(==)(rt1::RowTable, rt2::RowTable) = (index(rt1) == index(rt2) && rows(rt1) == rows(rt2))
+Base.:(==)(rt1::RowTable, rt2::RowTable) = (_index(rt1) == _index(rt2) && rows(rt1) == rows(rt2))
 
 ### Constructors
 
-newrows(n::Integer=0) = Vector{Any}(n)
+newrows(n::Integer=0) = Vector{Any}(uninitialized, n)
 
 RowTable() = RowTable(newrows(),CIndex())
 
@@ -59,7 +61,10 @@ function _RowTable(::Type{T} , a::AbstractVector, keynames) where T <: Tuple
     RowTable(a,CIndex(keynames))
 end
 
-_RowTable(::Type{T} , a::AbstractVector) where T <: AbstractDict  = _RowTable(T, a, keys(first(a)))
+# v0.7 requires collect (or something else) here to avoid constructing a Set, which preventd indexing
+_RowTable(::Type{T} , a::AbstractVector) where T <: AbstractDict  = _RowTable(T, a, collect(keys(first(a))))
+#_RowTable(::Type{T} , a::AbstractVector) where T <: AbstractDict  = _RowTable(T, a, keys(first(a)))
+
 
 function _RowTable(::Type{T} , a::AbstractVector, keynames) where T <: AbstractDict
     all(x -> isa(x,AbstractDict), a) || error("Not all elements are dictionaries")
@@ -81,7 +86,7 @@ function RowTable(df::DataFrames.DataFrame; tuples=false)
     arr = Any[]
     if tuples
         for ri in 1:nr
-            push!(arr, ([df[ri,ci] for ci in 1:nc]...))
+            push!(arr, ([df[ri,ci] for ci in 1:nc]...,))
         end
     else
         for ri in 1:nr
@@ -108,24 +113,34 @@ Base.getindex(rt::RowTable,ind::Integer) = rows(rt)[ind]
 
 ### Single cell returned
 
-Base.getindex(rt::RowTable,ri::Integer, ci::ColInd) = rows(rt)[ri][index(rt)[ci]]
+Base.getindex(rt::RowTable,ri::Integer, ci::ColInd) = rows(rt)[ri][_index(rt)[ci]]
+# If above is called in a loop with symbol arg, using below is faster
+Base.getindex(rt::RowTable,ri::Integer, ci::Integer) = rows(rt)[ri][ci]
 
 ### RowTable returned
 
-Base.getindex(rt::RowTable,inds) = RowTable(rows(rt)[inds],index(rt)) # copy index ?
+Base.getindex(rt::RowTable,inds) = RowTable(rows(rt)[inds],_index(rt)) # copy index ?
 
-# Not what we want
-Base.getindex(rt::RowTable,ri::AbstractVector, ci::Integer) = getindex(rt,ri,[ci])
+### Return a Vector
+function Base.getindex(rt::RowTable,ri::AbstractVector,ci::ColInd)
+    ind = colindex(rt,ci) # do this so symbol mapping is only done once
+    [rt[i,ind] for i in ri]
+end
 
-Base.getindex(rt::RowTable,ri::AbstractVector{T}, ci::Symbol) where T<:Integer = rt.rows[ri][rt.colindex.map[ci]]
-Base.getindex(rt::RowTable,ri::Integer, ci::AbstractVector{T}) where T<:Symbol = rt.rows[ri][[rt.colindex.map[i] for i in ci]]
+### Return a Vector
+Base.getindex(rt::RowTable, ri::Integer, ci::AbstractVector{T}) where T<:Symbol =
+    rt.rows[ri][[rt.colindex.map[i] for i in ci]]
+
+## Return slices as RowTable
+## Following calls the next method with integer arguments
 Base.getindex(rt::RowTable,ri::AbstractVector{T}, ci::AbstractVector{V}) where {T<:Integer,V<:Symbol} =
-    Base.getindex(rt,ri, [rt.colindex.map[i] for i in ci])
+    Base.getindex(rt,ri, [_index(rt).map[s] for s in ci])
 
+## Return slices as RowTable
 function Base.getindex(rt::RowTable,ri::AbstractVector, ci::AbstractVector{T}) where T<:Integer
     ar = newrows(length(ri))
-    for i in ri
-        ar[i] = rt.rows[i][ci]
+    for (i,ind) in enumerate(ri)
+        ar[i] = rt.rows[ind][ci]
     end
     RowTable(ar, CIndex(rt.colindex.names[ci]))
 end
@@ -199,12 +214,12 @@ end
 function Base.show(io::IO, rd::RowDict)
     indent = 4
     JSON.Writer.print(io,rd.dict,indent)
-end 
+end
 
 function Base.show(io::IO, ar::RowArr)
     indent = 4
     JSON.Writer.print(io,ar.arr,indent)
-end 
+end
 
 
 ### Transform
@@ -215,4 +230,4 @@ for f in (:deleteat!, :push!, :insert!, :unshift!, :shift!, :pop!, :append!, :pr
     end
 end
 
-DataFrames.rename!(rt::RowTable,d) = (rename!(index(rt),d); rt)
+DataFrames.rename!(rt::RowTable,d) = (rename!(_index(rt),d); rt)

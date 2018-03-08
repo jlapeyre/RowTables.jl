@@ -10,19 +10,35 @@ struct CIndex
     map::Dict{Symbol,Int}
 end
 
+"""
+    Base.names(c::CIndex) = c.names
+
+Return the names of the index `c`.
+"""
 Base.names(c::CIndex) = c.names
 
-_names(c::CIndex) = c.names
-_map(c::CIndex) = c.map
+@inline _names(c::CIndex) = c.names
+@inline _map(c::CIndex) = c.map
 
-CIndex() = CIndex(Symbol[])
-CIndex(names::Array{Symbol}) = CIndex(names, Dict(s => i for (i,s) in enumerate(names)))
+### CIndex constructors
+
+CIndex() = CIndex(Symbol[])::CIndex
+
+"""
+    CIndex(names::Vector{Symbol})::CIndex
+
+Create a `Cindex` with names and their ordinal position as in `names`.
+"""
+CIndex(names::Vector{Symbol})::CIndex = CIndex(names, Dict(s => i for (i,s) in enumerate(names)))
+
+# Hack around unknown bug that shows up only in v0.7
+CIndex(names::Set{Symbol})::CIndex = CIndex([x for x in names])
 
 Base.:(==)(c1::CIndex, c2::CIndex) = (_names(c1) == _names(c2))
 
-Base.getindex(c::CIndex, inds) = inds
-Base.getindex(c::CIndex, s::Symbol) = _map(c)[s]
-# can avoid allocation by returning an iterator ?
+@inline Base.getindex(c::CIndex, inds) = inds
+@inline Base.getindex(c::CIndex, s::Symbol)::Int = _map(c)[s]
+# can we avoid allocation by returning an iterator ?
 Base.getindex(c::CIndex, syms::AbstractVector{T}) where T <: Symbol = [_map(c)[s] for s in syms] 
 
 function DataFrames.rename!(c::CIndex, d::AbstractDict)
