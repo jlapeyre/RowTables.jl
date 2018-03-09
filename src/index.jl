@@ -41,6 +41,13 @@ Base.:(==)(c1::CIndex, c2::CIndex) = (_names(c1) == _names(c2))
 # can we avoid allocation by returning an iterator ?
 Base.getindex(c::CIndex, syms::AbstractVector{T}) where T <: Symbol = [_map(c)[s] for s in syms] 
 
+### Copy
+
+Base.copy(ci::CIndex) = CIndex(copy(_names(ci)),copy(ci.map))
+Base.deepcopy(ci::CIndex) = CIndex(deepcopy(_names(ci)),deepcopy(ci.map))
+
+### Rename
+
 function DataFrames.rename!(c::CIndex, d::AbstractDict)
     newnames = copy(c.names)
     for (from,to) in d

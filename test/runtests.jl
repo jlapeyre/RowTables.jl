@@ -10,10 +10,10 @@ let
     @test RowTable(a) == RowTable(b,[:b,:a])
 
     ds = [
-    Dict(:a=>2,:b=>1,:c=>7)
-    Dict(:a=>1,:b=>4,:c=>8)
-    Dict(:a=>9,:b=>6,:c=>4)
-    Dict(:a=>10,:b=>8,:c=>7)
+        Dict(:a=>2,:b=>1,:c=>7)
+        Dict(:a=>1,:b=>4,:c=>8)
+        Dict(:a=>9,:b=>6,:c=>4)
+        Dict(:a=>10,:b=>8,:c=>7)
         Dict(:a=>10,:b=>4,:c=>3)]
 
     # Construct from array of dictionaries
@@ -31,5 +31,10 @@ let
 
     rs = Any[[2, 7], [1, 8], [9, 4], [10, 7], [10, 3]]
     @test RowTable(rs,[:a,:c]) == rt[:,[:a,:c]]
-    
+    @test RowTable([[4, 8], [6, 4], [8, 7]], [:b,:c]) == rt[2:4,[:b,:c]]
+    s = 0
+    for r in rt
+        s += sum(r)
+    end
+    @test s == 84
 end

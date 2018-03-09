@@ -15,7 +15,6 @@ end
 @inline rows(rt::RowTable) = rt.rows
 Base.names(rt::RowTable) = _names(_index(rt))
 _names(rt::RowTable) = _names(_index(rt))
-Base.length(rt::RowTable) = _numberofcols(rt)
 Base.size(rt::RowTable) =   _numberofrows(rt), _numberofcols(rt)
 _numberofcols(rt::RowTable) = length(_names(rt))
 _numberofrows(rt::RowTable) = isempty(rows(rt)) ? 0 : length(rows(rt))
@@ -61,7 +60,7 @@ function _RowTable(::Type{T} , a::AbstractVector, keynames) where T <: Tuple
     RowTable(a,CIndex(keynames))
 end
 
-# v0.7 requires collect (or something else) here to avoid constructing a Set, which preventd indexing
+# v0.7 requires collect (or something else) here to avoid constructing a Set, which prevents indexing
 _RowTable(::Type{T} , a::AbstractVector) where T <: AbstractDict  = _RowTable(T, a, collect(keys(first(a))))
 #_RowTable(::Type{T} , a::AbstractVector) where T <: AbstractDict  = _RowTable(T, a, keys(first(a)))
 
@@ -151,6 +150,21 @@ function Base.getindex(rt::RowTable, ri::AbstractVector, ::Colon)
     RowTable(rt.rows[ri], rt.colindex)
 end
 
+### Iterate over rows
+
+for f in (:length, :start)
+    @eval begin
+        (Base.$f)(rt::RowTable) = (Base.$f)(rows(rt))
+    end
+end
+
+for f in (:next, :done)
+    @eval begin
+        (Base.$f)(rt::RowTable,args...) = (Base.$f)(rows(rt),args...)
+    end
+end
+
+
 ### IO
 
 function Base.show(io::IO, rt::RowTable, allcols::Bool=false, displaysummary::Bool=true)
@@ -221,13 +235,22 @@ function Base.show(io::IO, ar::RowArr)
     JSON.Writer.print(io,ar.arr,indent)
 end
 
+### Copy
+
+Base.copy(rt::RowTable) = RowTable(copy(rows(rt)), copy(_index(rt)))
+Base.deepcopy(rt::RowTable) = RowTable(deepcopy(rows(rt)), deepcopy(_index(rt)))
 
 ### Transform
 
-for f in (:deleteat!, :push!, :insert!, :unshift!, :shift!, :pop!, :append!, :prepend!, :splice!)
+for f in (:deleteat!, :push!, :insert!, :unshift!, :shift!, :pop!, :append!, :prepend!, :splice!, :permute!)
     @eval begin
         (Base.$f)(rt::RowTable,args...) = (($f)(rows(rt),args...); rt)
     end
 end
+
+Base.permute!(rt::RowTable,p::AbstractVector) = (permute!(rows(rt),p); rt)
+Base.shuffle!(rng::AbstractRNG, rt::RowTable) = (shuffle!(rng,rows(rt)); rt)
+Base.shuffle!(rt::RowTable) = (shuffle!(rows(rt)); rt)
+
 
 DataFrames.rename!(rt::RowTable,d) = (rename!(_index(rt),d); rt)
