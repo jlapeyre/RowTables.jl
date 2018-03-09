@@ -18,11 +18,18 @@ let
 
     # Construct from array of dictionaries
     rt = RowTable(ds,[:a,:b,:c])
+    df = DataFrame(rt)
+    rt == RowTable(df)
+
+    rt1 = deepcopy(rt)
+    rename!(rename!(rt1, [:a => :b, :b => :a]), [:a => :b, :b => :a]) == rt
+    cyc = [:b => :a, :c => :b, :a => :c]
+    rename!(rename!(rename!(rt1,cyc),cyc),cyc) == rt
 
     @test rt == rt[:]
     @test rt == rt[:,:]
     @test rt[1,1] == 2
-    @test rt[1] == [2,1,7]
+    @test rt[1,:] == [2,1,7]
     @test rt[:,:b] == [1, 4, 6, 8, 4]
     @test rt[:,:b] == rt[:,2]
     @test rt[:,:a] == rt[:,1]

@@ -41,7 +41,8 @@ else
                          Base.KeyIterator{T} where T<:AbstractDict{V} where V <: Union{W,Symbol} where W <: AbstractString}
 end
 
-@inbounds function _RowTable(a,keynames)
+# @inbounds on a function does nothing
+function _RowTable(a,keynames)
     isempty(a) && return RowTable(newrows(),CIndex(map(Symbol,keynames))) # JSON keys are strings
     l = length(first(a))
     all(x -> length(x) == l, a) || throw(DiminsionMismatch("All dictionaries must be of the same length"))
@@ -80,16 +81,23 @@ function RowTable(a::AbstractVector,keynames::_NameTypes)
     _RowTable(typeof(first(a)),a,keynames)
 end
 
+# preallocating arr is slower than pushing each row into an
+# empty arr. At least with some tests. Even with inbounds
+# Can't find and doc on @inbounds inside comprehension. But it does
+# improve performance
 function RowTable(df::DataFrames.DataFrame; tuples=false)
     (nr,nc) = size(df)
+#    arr = Vector{Any}(uninitialized,nr)
     arr = Any[]
     if tuples
-        for ri in 1:nr
-            push!(arr, ([df[ri,ci] for ci in 1:nc]...,))
+      @inbounds   for ri in 1:nr
+#          arr[ri] = ([df[ri,ci] for ci in 1:nc]...,)
+            push!(arr, ([@inbounds df[ri,ci] for ci in 1:nc]...,))
         end
     else
-        for ri in 1:nr
-            push!(arr, [df[ri,ci] for ci in 1:nc])
+      @inbounds for ri in 1:nr
+#          arr[ri] = [df[ri,ci] for ci in 1:nc]
+            push!(arr, [@inbounds df[ri,ci] for ci in 1:nc])            
         end
     end
     RowTable(arr, copy(names(df)))
@@ -107,8 +115,10 @@ end
 const ColInd = Union{Integer,Symbol}
 
 ### One row returned
+#Base.getindex(rt::RowTable,ind::Integer) = rows(rt)[ind]
 
-Base.getindex(rt::RowTable,ind::Integer) = rows(rt)[ind]
+# No, let's return one column to be consistent with DataFrames
+Base.getindex(rt::RowTable,ci::ColInd) = rt[:,ci]
 
 ### Single cell returned
 
@@ -127,8 +137,14 @@ function Base.getindex(rt::RowTable,ri::AbstractVector,ci::ColInd)
 end
 
 ### Return a Vector
+## @inbounds in a comprehension sometimes returns nothing and thus errors.
+## Other times it improves performance. No idea how to distinguish the cases.
+## We don't want @inbounds here in any case, as the indices are chosen by the user
 Base.getindex(rt::RowTable, ri::Integer, ci::AbstractVector{T}) where T<:Symbol =
     rt.rows[ri][[rt.colindex.map[i] for i in ci]]
+
+### One row returned. Return a vector
+Base.getindex(rt::RowTable, ri::Integer, ::Colon) = rt.rows[ri]
 
 ## Return slices as RowTable
 ## Following calls the next method with integer arguments
@@ -186,13 +202,13 @@ end
 
 ### Convert
 
-@inbounds function tocolumns(rt::RowTable)
+function tocolumns(rt::RowTable)
     (nr,nc) = size(rt)
-    arr = [newrows(nr) for i in 1:nc]
+    @inbounds arr =  [newrows(nr) for i in 1:nc]
     for rowind in 1:nr
-        row = rows(rt)[rowind]
+      @inbounds row = rows(rt)[rowind]
         for colind in 1:nc
-            arr[colind][rowind] = row[colind]
+        @inbounds arr[colind][rowind] = row[colind]
         end
     end
     return arr
@@ -208,6 +224,11 @@ struct RowArr{T}
     arr::Vector{T}
 end
 
+"""
+    rowdict(rt::RowTable, rowind::Integer)::RowDict
+
+Return the `rowind`th row from `rt` wrapped so that it is pretty printed.
+"""
 function rowdict(rt::RowTable, rowind::Integer)
     od = OrderedDict{Symbol,Any}()
     for (colind::Integer,cname::Symbol) in enumerate(_names(rt))
@@ -216,14 +237,19 @@ function rowdict(rt::RowTable, rowind::Integer)
     RowDict(od)
 end
 
-function rowdict(rt::RowTable, rowinds::AbstractVector)
+
+"""
+    rowdict(rt::RowTable, rowinds::AbstractVector)::RowDict
+
+Return the rows indexed by `rowinds` from `rt` wrapped so that they are pretty printed.
+"""
+function rowdict(rt::RowTable, rowinds::AbstractVector)::RowArr
     ar = Any[]
     for rowind in rowinds
         push!(ar, rowdict(rt,rowind).dict)
     end
     RowArr(ar)
 end
-
 
 function Base.show(io::IO, rd::RowDict)
     indent = 4
