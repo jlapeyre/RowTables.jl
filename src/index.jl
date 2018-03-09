@@ -57,7 +57,7 @@ function DataFrames.rename!(c::CIndex, d::AbstractDict)
         newnames[c.map[from]] =  to
     end
     length(newnames) == length(unique(newnames)) || throw(ArgumentError("names must be unique"))
-    for (i,k) in enumerate(newnames)
+ @inbounds for (i,k) in enumerate(newnames)
         c.names[i] = k
         c.map[k] = i
     end
