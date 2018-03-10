@@ -22,22 +22,22 @@ Base.names(c::CIndex) = c.names
 
 ### CIndex constructors
 
-CIndex() = CIndex(Symbol[])::CIndex
+CIndex() = CIndex(Symbol[])
 
 """
     CIndex(names::Vector{Symbol})::CIndex
 
 Create a `Cindex` with names and their ordinal position as in `names`.
 """
-CIndex(names::Vector{Symbol})::CIndex = CIndex(names, Dict(s => i for (i,s) in enumerate(names)))
+CIndex(names::Vector{Symbol}) = CIndex(names, Dict(s => i for (i,s) in enumerate(names)))
 
 # Hack around unknown bug that shows up only in v0.7
-CIndex(names::Set{Symbol})::CIndex = CIndex([x for x in names])
+CIndex(names::Set{Symbol}) = CIndex([x for x in names])
 
 Base.:(==)(c1::CIndex, c2::CIndex) = (_names(c1) == _names(c2))
 
 @inline Base.getindex(c::CIndex, inds) = inds
-@inline Base.getindex(c::CIndex, s::Symbol)::Int = _map(c)[s]
+@inline Base.getindex(c::CIndex, s::Symbol) = _map(c)[s]  # returns Int
 # can we avoid allocation by returning an iterator ?
 Base.getindex(c::CIndex, syms::AbstractVector{T}) where T <: Symbol = [_map(c)[s] for s in syms]
 

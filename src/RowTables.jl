@@ -21,12 +21,12 @@ if VERSION >= v"0.7.0-DEV.3052"
     using Printf
 end
 
-
-export AbstractRowTable, RowTable, rows, columns, rename!, rowdict
+export AbstractRowTable, RowTable, rows, columns, rowdict
 
 include("index.jl")
 include("abstractrowtable.jl")
 include("rowtable.jl")
+include("display.jl")
 include("sort.jl")
 
 end  # module RowTables

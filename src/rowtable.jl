@@ -13,11 +13,17 @@ end
 @inline colindex(rt::RowTable,ci) = _index(rt)[ci]
 
 """
-    rows(rt::RowTable)::Vector
+    rows(rt::RowTable)
 
-Return the rows of `rt`.
+Return the rows of `rt` as a Vector.
 """
-@inline rows(rt::RowTable)::Vector = rt.rows
+@inline rows(rt::RowTable) = rt.rows
+
+# Annotating the method above with return type Vector makes it 1000x slower in v0.6,
+# and only a bit less slower in v0.7.
+# So... TODO: remove return type annotations more or less everywhere
+# @inline rows(rt::RowTable)::Vector = rt.rows
+
 Base.names(rt::RowTable) = _names(_index(rt))
 _names(rt::RowTable) = _names(_index(rt))
 Base.size(rt::RowTable) =   _numberofrows(rt), _numberofcols(rt)
@@ -102,7 +108,7 @@ function RowTable(df::DataFrames.DataFrame; tuples=false)
     else
       @inbounds for ri in 1:nr
 #          arr[ri] = [df[ri,ci] for ci in 1:nc]
-            push!(arr, [df[ri,ci] for ci in 1:nc])            
+            push!(arr, [df[ri,ci] for ci in 1:nc])
         end
     end
     RowTable(arr, copy(names(df)))
@@ -132,8 +138,15 @@ Base.getindex(rt::RowTable,cinds) = rt[:,cinds]
 
 ## Return element in a single cell
 Base.getindex(rt::RowTable,ri::Integer, ci::Symbol) = rows(rt)[ri][_index(rt)[ci]]
+
 # If above is called in a loop with symbol arg, using below is faster
+
 Base.getindex(rt::RowTable,ri::Integer, ci::Integer) = rows(rt)[ri][ci]
+
+# function Base.getindex(rt::RowTable,ri::Integer, ci::Integer)
+#     return rt.rows[ri][ci]
+# end
+
 
 ## Return a slice of a column as a Vector
 function Base.getindex(rt::RowTable,ri::AbstractVector,ci::ColInd)
@@ -182,26 +195,6 @@ for f in (:next, :done)
 end
 
 
-### IO
-
-## Lazy approach: For displaying, convert to DataFrame and display with different header
-
-function Base.show(io::IO, rt::RowTable, allcols::Bool=false, displaysummary::Bool=true)
-    df = DataFrames.DataFrame(rt)
-    rowlabel= :Row
-    dfdisplaysummary = false
-    displaysummary && print(io, summary(rt))
-    show(io,
-         df,
-         allcols,
-         rowlabel,
-         dfdisplaysummary)
-end
-
-function Base.show(rt::RowTable,
-                   allcols::Bool = false) # -> Void
-    return show(STDOUT, rt, allcols)
-end
 
 ### Convert
 
@@ -212,9 +205,24 @@ Return the columns of `rt`.
 """
 ## TODO: should the columns have more efficient types ?
 ## Yes, because this is used to construct DataFrames
-function columns(rt::RowTable)::Vector
+## But, attempts to determine eltype by scanning are very slow
+## This is much slower than converting in the other direction.
+function columns(rt::RowTable)
     (nr,nc) = size(rt)
-    @inbounds colarr =  [newrows(nr) for i in 1:nc]
+    @inbounds colarr =  [newrows(nr) for i in 1:nc] # misusing newrows for columns here
+    return _columns!(rt,colarr)
+end
+
+function columnstyped(rt::RowTable)
+    (nr,nc) = size(rt)
+    @inbounds colarr =  [Vector{typeof(rt[1,i])}(uninitialized,nr) for i in 1:nc]
+    return _columns!(rt,colarr)
+end
+
+## factoring this out makes columnstyped > 10% slower for a test case,
+## if not prefixed with @inline
+@inline function _columns!(rt, colarr)
+    (nr,nc) = size(rt)
     for rowind in 1:nr
       @inbounds row = rows(rt)[rowind]
         for colind in 1:nc
@@ -224,109 +232,34 @@ function columns(rt::RowTable)::Vector
     return colarr
 end
 
-function coltype(rt::RowTable, cind::Int)
+## This is slow, so we don't use it
+function _coltype(rt::RowTable, cind::Int)
     nr = size(rt,1)
     nr == 0 && return Any
     t = typeof(rt[1,cind])
     onetype::Bool = true
     for rowind in 2:nr
-        if ! isa(rt[rowind,ci],t)
+        if ! isa(rt[rowind,cind],t)
             onetype = false
             break
         end
     end
     return col = (onetype ? t : Any)
-    # col = onetype ? Vector{t}(uninitialized,nr) : Vector{Any}(uninitialized,nr)
-    #     for colind in 1:nc
-    #         col[colind] = row[rowind]
-    #     end
-    #     push!(colarr,col)
-end
-
-## As expected, this is much slower than `columns`
-function columns2(rt::RowTable)::Vector
-    (nr,nc) = size(rt)
-    @inbounds colarr =  [newrows(nr) for i in 1:nc]
-    for colind in 1:nc
-        col = colarr[colind] # does nothing to increase speed (as expected)
-        for rowind in 1:nr
-            @inbounds col[rowind] = rows(rt)[rowind][colind]
-        end
-    end
-    return colarr
-end
-
-
-# function columns2(rt::RowTable)::Vector
-#     (nr,nc) = size(rt)
-#     colarr =  Any[]
-#     for rowind in 1:nr
-#         @inbounds row = rows(rt)[rowind]
-#         t = typeof(row[1])
-#         onetype::Bool = true
-#         for colind in 2:nc
-#             if ! isa(row[colind],t)
-#                 onetype = false
-#                 break
-#             end
-#         end
-#         col = onetype ? Vector{t}(uninitialized,nr) : Vector{Any}(uninitialized,nr)
-#         for colind in 1:nc
-#             col[colind] = row[rowind]
-#         end
-#         push!(colarr,col)
-#     end
-#     return colarr
-# end
-
-
-
-DataFrames.DataFrame(rt::RowTable) = DataFrames.DataFrame(columns(rt),_names(rt))
-
-struct RowDict{T}
-    dict::OrderedDict{T}
-end
-
-struct RowArr{T}
-    arr::Vector{T}
 end
 
 """
-    rowdict(rt::RowTable, rowind::Integer)::RowDict
+    DataFrame(rt::RowTable; typed=false)
 
-Return the `rowind`th row from `rt` wrapped so that it is pretty printed.
+Convert `rt` to a `DataFrame`. If `typed` is `true`,
+then the eltype of each column is the type of the first
+element in the column. This will raise an error if the
+elements are in fact not of the same type.
 """
-function rowdict(rt::RowTable, rowind::Integer)
-    od = OrderedDict{Symbol,Any}()
-    for (colind::Integer,cname::Symbol) in enumerate(_names(rt))
-        od[cname] = rows(rt)[rowind][colind]
-    end
-    RowDict(od)
+function DataFrames.DataFrame(rt::RowTable; typed=false)
+    cols = (typed ? columnstyped(rt) : columns(rt))
+    DataFrames.DataFrame(cols,_names(rt))
 end
 
-
-"""
-    rowdict(rt::RowTable, rowinds::AbstractVector)::RowDict
-
-Return the rows indexed by `rowinds` from `rt` wrapped so that they are pretty printed.
-"""
-function rowdict(rt::RowTable, rowinds::AbstractVector)::RowArr
-    ar = Any[]
-    for rowind in rowinds
-        push!(ar, rowdict(rt,rowind).dict)
-    end
-    RowArr(ar)
-end
-
-function Base.show(io::IO, rd::RowDict)
-    indent = 4
-    JSON.Writer.print(io,rd.dict,indent)
-end
-
-function Base.show(io::IO, ar::RowArr)
-    indent = 4
-    JSON.Writer.print(io,ar.arr,indent)
-end
 
 ### Copy
 
@@ -335,15 +268,26 @@ Base.deepcopy(rt::RowTable) = RowTable(deepcopy(rows(rt)), deepcopy(_index(rt)))
 
 ### Transform
 
-for f in (:deleteat!, :push!, :insert!, :unshift!, :shift!, :pop!, :append!, :prepend!, :splice!, :permute!)
+for f in (:deleteat!, :push!, :insert!, :unshift!, :append!, :prepend!, :splice!, :permute!)
     @eval begin
         (Base.$f)(rt::RowTable,args...) = (($f)(rows(rt),args...); rt)
     end
 end
 
+for f in (:pop!,:shift!)
+    @eval begin
+        (Base.$f)(rt::RowTable,args...) = ($f)(rows(rt),args...)
+    end
+end
+
+## These are needed so that our methods are called, and not generic Base methods.
 Base.permute!(rt::RowTable,p::AbstractVector) = (permute!(rows(rt),p); rt)
+Base.permute(rt::RowTable,p::AbstractVector) = permute!(copy(rt),p)
+
 Base.shuffle!(rng::AbstractRNG, rt::RowTable) = (shuffle!(rng,rows(rt)); rt)
 Base.shuffle!(rt::RowTable) = (shuffle!(rows(rt)); rt)
-
+Base.shuffle(rt::RowTable) = shuffle!(copy(rt))
+Base.shuffle(rng::AbstractRNG,rt::RowTable) = shuffle!(rng,copy(rt))
 
 DataFrames.rename!(rt::RowTable,d) = (rename!(_index(rt),d); rt)
+DataFrames.rename(rt::RowTable,d) = rename!(copy(rt),d)

@@ -4,6 +4,7 @@ using DataStructures
 
 @test size(RowTable()) == (0,0)
 
+## TODO test these things with heterogeneous RowTable s
 let
     a = [OrderedDict(:b => 3 , :a => 1),OrderedDict(:b => 3 , :a => 4.0),OrderedDict(:b => 3 , :a => 1)]
     b = [Dict(:a => 1 , :b => 3),Dict(:a => 4.0 , :b => 3),Dict(:a => 1 , :b => 3)]
@@ -46,4 +47,8 @@ let
         s += sum(r)
     end
     @test s == 84
+
+    @test pop!(copy(rt)) == [10,4,3]
+    @test shift!(copy(rt)) == [2,1,7]
+
 end

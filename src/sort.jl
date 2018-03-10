@@ -13,5 +13,6 @@ end
 
 function Base.sort(rt::RowTable; kws...)
     rtout = copy(rt)
-    sort!(rt;kws...)
+    sort!(rows(rtout);kws...)
+    return rtout
 end
