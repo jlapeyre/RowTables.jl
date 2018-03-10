@@ -11,18 +11,26 @@ end
 
 @inline _index(rt::RowTable) = rt.colindex
 @inline colindex(rt::RowTable,ci) = _index(rt)[ci]
-#_index(rt::RowTable) = rt.colindex
-@inline rows(rt::RowTable) = rt.rows
+
+"""
+    rows(rt::RowTable)::Vector
+
+Return the rows of `rt`.
+"""
+@inline rows(rt::RowTable)::Vector = rt.rows
 Base.names(rt::RowTable) = _names(_index(rt))
 _names(rt::RowTable) = _names(_index(rt))
 Base.size(rt::RowTable) =   _numberofrows(rt), _numberofcols(rt)
 _numberofcols(rt::RowTable) = length(_names(rt))
-_numberofrows(rt::RowTable) = isempty(rows(rt)) ? 0 : length(rows(rt))
+_numberofrows(rt::RowTable) = length(rows(rt)) # should be the same as below
+#_numberofrows(rt::RowTable) = isempty(rows(rt)) ? 0 : length(rows(rt))
 
+## TODO: make sure this is optimized if n is known at compile time
+## (And even if not known)
 Base.size(rt::RowTable,n::Integer) = n == 1 ? _numberofrows(rt) : n == 2 ? _numberofcols(rt) :
     error(ArgumentError, ": RowTables have only two dimensions")
 
-### Basic ops
+### Equality
 
 Base.:(==)(rt1::RowTable, rt2::RowTable) = (_index(rt1) == _index(rt2) && rows(rt1) == rows(rt2))
 
@@ -30,6 +38,7 @@ Base.:(==)(rt1::RowTable, rt2::RowTable) = (_index(rt1) == _index(rt2) && rows(r
 
 newrows(n::Integer=0) = Vector{Any}(uninitialized, n)
 
+# emtpy RowTable
 RowTable() = RowTable(newrows(),CIndex())
 
 ## We did not use the type information afterall.
@@ -81,23 +90,19 @@ function RowTable(a::AbstractVector,keynames::_NameTypes)
     _RowTable(typeof(first(a)),a,keynames)
 end
 
-# preallocating arr is slower than pushing each row into an
-# empty arr. At least with some tests. Even with inbounds
-# Can't find and doc on @inbounds inside comprehension. But it does
-# improve performance
 function RowTable(df::DataFrames.DataFrame; tuples=false)
     (nr,nc) = size(df)
 #    arr = Vector{Any}(uninitialized,nr)
-    arr = Any[]
+    arr = newrows()
     if tuples
       @inbounds   for ri in 1:nr
 #          arr[ri] = ([df[ri,ci] for ci in 1:nc]...,)
-            push!(arr, ([@inbounds df[ri,ci] for ci in 1:nc]...,))
+            push!(arr, ([df[ri,ci] for ci in 1:nc]...,))
         end
     else
       @inbounds for ri in 1:nr
 #          arr[ri] = [df[ri,ci] for ci in 1:nc]
-            push!(arr, [@inbounds df[ri,ci] for ci in 1:nc])            
+            push!(arr, [df[ri,ci] for ci in 1:nc])            
         end
     end
     RowTable(arr, copy(names(df)))
@@ -110,48 +115,45 @@ function Base.summary(rt::RowTable) # -> String
     return @sprintf("%d×%d %s", nrows, ncols, typeof(rt))
 end
 
-### Index
 
+##############################################################################
+##
+## Index
+##
+##############################################################################
+
+## This allows single methods to handle both Int and Symbol indices.
+## But, it allows repeated mapping of the same Symbol, which is inefficient.
+## So, this might not be used much
 const ColInd = Union{Integer,Symbol}
 
-### One row returned
-#Base.getindex(rt::RowTable,ind::Integer) = rows(rt)[ind]
+## A single index is a interpreted as a column index, consistent with DataFrames
+Base.getindex(rt::RowTable,cinds) = rt[:,cinds]
 
-# No, let's return one column to be consistent with DataFrames
-Base.getindex(rt::RowTable,ci::ColInd) = rt[:,ci]
-
-### Single cell returned
-
-Base.getindex(rt::RowTable,ri::Integer, ci::ColInd) = rows(rt)[ri][_index(rt)[ci]]
+## Return element in a single cell
+Base.getindex(rt::RowTable,ri::Integer, ci::Symbol) = rows(rt)[ri][_index(rt)[ci]]
 # If above is called in a loop with symbol arg, using below is faster
 Base.getindex(rt::RowTable,ri::Integer, ci::Integer) = rows(rt)[ri][ci]
 
-### RowTable returned
-
-Base.getindex(rt::RowTable,inds) = RowTable(rows(rt)[inds],_index(rt)) # copy index ?
-
-### Return a Vector
+## Return a slice of a column as a Vector
 function Base.getindex(rt::RowTable,ri::AbstractVector,ci::ColInd)
     ind = colindex(rt,ci) # do this so symbol mapping is only done once
     [rt[i,ind] for i in ri]
 end
 
-### Return a Vector
-## @inbounds in a comprehension sometimes returns nothing and thus errors.
-## Other times it improves performance. No idea how to distinguish the cases.
-## We don't want @inbounds here in any case, as the indices are chosen by the user
+## Return a slice of a row as a Vector
 Base.getindex(rt::RowTable, ri::Integer, ci::AbstractVector{T}) where T<:Symbol =
     rt.rows[ri][[rt.colindex.map[i] for i in ci]]
 
-### One row returned. Return a vector
+### Return a row as a Vector
 Base.getindex(rt::RowTable, ri::Integer, ::Colon) = rt.rows[ri]
 
-## Return slices as RowTable
-## Following calls the next method with integer arguments
+## Return slice as RowTable
+## Following method calls the next method with integer arguments
 Base.getindex(rt::RowTable,ri::AbstractVector{T}, ci::AbstractVector{V}) where {T<:Integer,V<:Symbol} =
     Base.getindex(rt,ri, [_index(rt).map[s] for s in ci])
 
-## Return slices as RowTable
+## Return rectangular slice in both dimensions as RowTable
 function Base.getindex(rt::RowTable,ri::AbstractVector, ci::AbstractVector{T}) where T<:Integer
     ar = newrows(length(ri))
     for (i,ind) in enumerate(ri)
@@ -160,11 +162,10 @@ function Base.getindex(rt::RowTable,ri::AbstractVector, ci::AbstractVector{T}) w
     RowTable(ar, CIndex(rt.colindex.names[ci]))
 end
 
-Base.getindex(rt::RowTable, ::Colon, ci) = Base.getindex(rt, 1:length(rt.rows), ci)
+#Base.getindex(rt::RowTable, ::Colon, ci) = Base.getindex(rt, 1:length(rt.rows), ci)
+Base.getindex(rt::RowTable, ::Colon, ci) = rt[1:length(rows(rt)),ci]
 
-function Base.getindex(rt::RowTable, ri::AbstractVector, ::Colon)
-    RowTable(rt.rows[ri], rt.colindex)
-end
+Base.getindex(rt::RowTable, ri::AbstractVector, ::Colon) = RowTable(rows(rt)[ri], rt.colindex)
 
 ### Iterate over rows
 
@@ -182,6 +183,8 @@ end
 
 
 ### IO
+
+## Lazy approach: For displaying, convert to DataFrame and display with different header
 
 function Base.show(io::IO, rt::RowTable, allcols::Bool=false, displaysummary::Bool=true)
     df = DataFrames.DataFrame(rt)
@@ -202,19 +205,83 @@ end
 
 ### Convert
 
-function tocolumns(rt::RowTable)
+"""
+    columns(rt::RowTable)::Vector
+
+Return the columns of `rt`.
+"""
+## TODO: should the columns have more efficient types ?
+## Yes, because this is used to construct DataFrames
+function columns(rt::RowTable)::Vector
     (nr,nc) = size(rt)
-    @inbounds arr =  [newrows(nr) for i in 1:nc]
+    @inbounds colarr =  [newrows(nr) for i in 1:nc]
     for rowind in 1:nr
       @inbounds row = rows(rt)[rowind]
         for colind in 1:nc
-        @inbounds arr[colind][rowind] = row[colind]
+        @inbounds colarr[colind][rowind] = row[colind]
         end
     end
-    return arr
+    return colarr
 end
 
-DataFrames.DataFrame(rt::RowTable) = DataFrames.DataFrame(tocolumns(rt),_names(rt))
+function coltype(rt::RowTable, cind::Int)
+    nr = size(rt,1)
+    nr == 0 && return Any
+    t = typeof(rt[1,cind])
+    onetype::Bool = true
+    for rowind in 2:nr
+        if ! isa(rt[rowind,ci],t)
+            onetype = false
+            break
+        end
+    end
+    return col = (onetype ? t : Any)
+    # col = onetype ? Vector{t}(uninitialized,nr) : Vector{Any}(uninitialized,nr)
+    #     for colind in 1:nc
+    #         col[colind] = row[rowind]
+    #     end
+    #     push!(colarr,col)
+end
+
+## As expected, this is much slower than `columns`
+function columns2(rt::RowTable)::Vector
+    (nr,nc) = size(rt)
+    @inbounds colarr =  [newrows(nr) for i in 1:nc]
+    for colind in 1:nc
+        col = colarr[colind] # does nothing to increase speed (as expected)
+        for rowind in 1:nr
+            @inbounds col[rowind] = rows(rt)[rowind][colind]
+        end
+    end
+    return colarr
+end
+
+
+# function columns2(rt::RowTable)::Vector
+#     (nr,nc) = size(rt)
+#     colarr =  Any[]
+#     for rowind in 1:nr
+#         @inbounds row = rows(rt)[rowind]
+#         t = typeof(row[1])
+#         onetype::Bool = true
+#         for colind in 2:nc
+#             if ! isa(row[colind],t)
+#                 onetype = false
+#                 break
+#             end
+#         end
+#         col = onetype ? Vector{t}(uninitialized,nr) : Vector{Any}(uninitialized,nr)
+#         for colind in 1:nc
+#             col[colind] = row[rowind]
+#         end
+#         push!(colarr,col)
+#     end
+#     return colarr
+# end
+
+
+
+DataFrames.DataFrame(rt::RowTable) = DataFrames.DataFrame(columns(rt),_names(rt))
 
 struct RowDict{T}
     dict::OrderedDict{T}

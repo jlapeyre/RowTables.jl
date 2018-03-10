@@ -22,7 +22,7 @@ if VERSION >= v"0.7.0-DEV.3052"
 end
 
 
-export AbstractRowTable, RowTable, rows, rename!, rowdict
+export AbstractRowTable, RowTable, rows, columns, rename!, rowdict
 
 include("index.jl")
 include("abstractrowtable.jl")
