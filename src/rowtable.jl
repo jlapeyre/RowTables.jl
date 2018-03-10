@@ -78,8 +78,6 @@ end
 
 # v0.7 requires collect (or something else) here to avoid constructing a Set, which prevents indexing
 _RowTable(::Type{T} , a::AbstractVector) where T <: AbstractDict  = _RowTable(T, a, collect(keys(first(a))))
-#_RowTable(::Type{T} , a::AbstractVector) where T <: AbstractDict  = _RowTable(T, a, keys(first(a)))
-
 
 function _RowTable(::Type{T} , a::AbstractVector, keynames) where T <: AbstractDict
     all(x -> isa(x,AbstractDict), a) || error("Not all elements are dictionaries")
@@ -124,7 +122,13 @@ end
 
 ##############################################################################
 ##
-## Index
+## Indexing
+##
+##############################################################################
+
+##############################################################################
+##
+## getindex()
 ##
 ##############################################################################
 
@@ -143,10 +147,6 @@ Base.getindex(rt::RowTable,ri::Integer, ci::Symbol) = rows(rt)[ri][_index(rt)[ci
 
 Base.getindex(rt::RowTable,ri::Integer, ci::Integer) = rows(rt)[ri][ci]
 
-# function Base.getindex(rt::RowTable,ri::Integer, ci::Integer)
-#     return rt.rows[ri][ci]
-# end
-
 
 ## Return a slice of a column as a Vector
 function Base.getindex(rt::RowTable,ri::AbstractVector,ci::ColInd)
@@ -155,8 +155,8 @@ function Base.getindex(rt::RowTable,ri::AbstractVector,ci::ColInd)
 end
 
 ## Return a slice of a row as a Vector
-Base.getindex(rt::RowTable, ri::Integer, ci::AbstractVector{T}) where T<:Symbol =
-    rt.rows[ri][[rt.colindex.map[i] for i in ci]]
+Base.getindex(rt::RowTable, ri::Integer, cis::AbstractVector{T}) where T<:Symbol =
+    rows(rt)[ri][[_index(rt)[ci] for ci in cis]]
 
 ### Return a row as a Vector
 Base.getindex(rt::RowTable, ri::Integer, ::Colon) = rt.rows[ri]
@@ -164,7 +164,8 @@ Base.getindex(rt::RowTable, ri::Integer, ::Colon) = rt.rows[ri]
 ## Return slice as RowTable
 ## Following method calls the next method with integer arguments
 Base.getindex(rt::RowTable,ri::AbstractVector{T}, ci::AbstractVector{V}) where {T<:Integer,V<:Symbol} =
-    Base.getindex(rt,ri, [_index(rt).map[s] for s in ci])
+    Base.getindex(rt,ri, [_index(rt)[s] for s in ci])
+#    Base.getindex(rt,ri, [_index(rt).smap[s] for s in ci])
 
 ## Return rectangular slice in both dimensions as RowTable
 function Base.getindex(rt::RowTable,ri::AbstractVector, ci::AbstractVector{T}) where T<:Integer
@@ -180,20 +181,14 @@ Base.getindex(rt::RowTable, ::Colon, ci) = rt[1:length(rows(rt)),ci]
 
 Base.getindex(rt::RowTable, ri::AbstractVector, ::Colon) = RowTable(rows(rt)[ri], rt.colindex)
 
-### Iterate over rows
+##############################################################################
+##
+## setindex!()
+##
+##############################################################################
 
-for f in (:length, :start)
-    @eval begin
-        (Base.$f)(rt::RowTable) = (Base.$f)(rows(rt))
-    end
-end
-
-for f in (:next, :done)
-    @eval begin
-        (Base.$f)(rt::RowTable,args...) = (Base.$f)(rows(rt),args...)
-    end
-end
-
+Base.setindex!(rt::RowTable, val, ri::Integer, ci::Integer) = (rows(rt)[ri][ci] = val)
+Base.setindex!(rt::RowTable, val, ri::Integer, ci::Symbol) = (rows(rt)[ri][ci] = val)
 
 
 ### Convert
@@ -260,11 +255,26 @@ function DataFrames.DataFrame(rt::RowTable; typed=false)
     DataFrames.DataFrame(cols,_names(rt))
 end
 
-
 ### Copy
 
 Base.copy(rt::RowTable) = RowTable(copy(rows(rt)), copy(_index(rt)))
 Base.deepcopy(rt::RowTable) = RowTable(deepcopy(rows(rt)), deepcopy(_index(rt)))
+
+### Iterate over rows
+## DataFrames does not define iterating over a DataFrame.
+## We do for RowTable
+
+for f in (:length, :start)
+    @eval begin
+        (Base.$f)(rt::RowTable) = (Base.$f)(rows(rt))
+    end
+end
+
+for f in (:next, :done)
+    @eval begin
+        (Base.$f)(rt::RowTable,args...) = (Base.$f)(rows(rt),args...)
+    end
+end
 
 ### Transform
 

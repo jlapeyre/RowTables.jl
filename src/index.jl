@@ -7,7 +7,7 @@ Data holding column names and map to linear indices for RowTable.
 """
 struct CIndex
     names::Array{Symbol}
-    map::Dict{Symbol,Int}
+    smap::Dict{Symbol,Int}
 end
 
 """
@@ -18,7 +18,7 @@ Return the names of the index `c`.
 Base.names(c::CIndex) = c.names
 
 @inline _names(c::CIndex) = c.names
-@inline _map(c::CIndex) = c.map
+@inline _smap(c::CIndex) = c.smap
 
 ### CIndex constructors
 
@@ -37,14 +37,14 @@ CIndex(names::Set{Symbol}) = CIndex([x for x in names])
 Base.:(==)(c1::CIndex, c2::CIndex) = (_names(c1) == _names(c2))
 
 @inline Base.getindex(c::CIndex, inds) = inds
-@inline Base.getindex(c::CIndex, s::Symbol) = _map(c)[s]  # returns Int
+@inline Base.getindex(c::CIndex, s::Symbol) = _smap(c)[s]  # returns Int
 # can we avoid allocation by returning an iterator ?
-Base.getindex(c::CIndex, syms::AbstractVector{T}) where T <: Symbol = [_map(c)[s] for s in syms]
+Base.getindex(c::CIndex, syms::AbstractVector{T}) where T <: Symbol = [_smap(c)[s] for s in syms]
 
 ### Copy
 
-Base.copy(ci::CIndex) = CIndex(copy(_names(ci)),copy(ci.map))
-Base.deepcopy(ci::CIndex) = CIndex(deepcopy(_names(ci)),deepcopy(ci.map))
+Base.copy(ci::CIndex) = CIndex(copy(_names(ci)),copy(ci.smap))
+Base.deepcopy(ci::CIndex) = CIndex(deepcopy(_names(ci)),deepcopy(ci.smap))
 
 ### Rename
 
@@ -53,12 +53,12 @@ DataFrames.rename!(c::CIndex, a::Array{T}) where T <: Pair = rename!(c::CIndex,D
 function DataFrames.rename!(c::CIndex, d::AbstractDict)
     newnames = copy(c.names)
     for (from,to) in d
-        haskey(c.map, from) || throw(ErrorException("There is no existing name $from"))
-        newnames[c.map[from]] =  to
+        haskey(c.smap, from) || throw(ErrorException("There is no existing name $from"))
+        newnames[c.smap[from]] =  to
     end
     length(newnames) == length(unique(newnames)) || throw(ArgumentError("names must be unique"))
  @inbounds for (i,k) in enumerate(newnames)
         c.names[i] = k
-        c.map[k] = i
+        c.smap[k] = i
     end
 end
