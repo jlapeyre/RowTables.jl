@@ -6,7 +6,7 @@
 Data holding column names and map to linear indices for RowTable.
 """
 struct CIndex
-    names::Array{Symbol}
+    names::Vector{Symbol}
     smap::Dict{Symbol,Int}
 end
 

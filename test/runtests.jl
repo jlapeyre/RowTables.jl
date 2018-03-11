@@ -4,7 +4,6 @@ using DataStructures
 
 @test size(RowTable()) == (0,0)
 
-## TODO test these things with heterogeneous RowTable s
 let
     a = [OrderedDict(:b => 3 , :a => 1),OrderedDict(:b => 3 , :a => 4.0),OrderedDict(:b => 3 , :a => 1)]
     b = [Dict(:a => 1 , :b => 3),Dict(:a => 4.0 , :b => 3),Dict(:a => 1 , :b => 3)]
@@ -50,5 +49,14 @@ let
 
     @test pop!(copy(rt)) == [10,4,3]
     @test shift!(copy(rt)) == [2,1,7]
+
+    df[:d] = ["b", "v", "d", "x", "x"]
+
+    rt = RowTable(df)
+    @test sort(rt) == RowTable(sort(df))
+    @test sort(rt,cols=[2]) == RowTable(sort(df,cols=[2]))
+    @test sort(rt,cols=[2],rev=true) == RowTable(sort(df,cols=[2],rev=true))
+    @test sort(rt,cols=[2],rev=true) != RowTable(sort(df,cols=[2]))
+    @test sort(rt,cols=[:d,:c],rev=true) == RowTable(sort(df,cols=[:d,:c],rev=true))
 
 end
