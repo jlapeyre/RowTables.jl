@@ -53,14 +53,14 @@ Base.deepcopy(ci::CIndex) = CIndex(deepcopy(_names(ci)),deepcopy(ci.smap))
 DataFrames.rename!(c::CIndex, a::Array{T}) where T <: Pair = rename!(c::CIndex,Dict(a))
 
 function DataFrames.rename!(c::CIndex, d::AbstractDict)
-    newnames = copy(c.names)
+    newnames = copy(_names(c))
     for (from,to) in d
-        haskey(c.smap, from) || throw(ErrorException("There is no existing name $from"))
-        newnames[c.smap[from]] =  to
+        haskey(_smap(c), from) || throw(ErrorException("There is no existing name $from"))
+        newnames[_smap(c)[from]] =  to
     end
     length(newnames) == length(unique(newnames)) || throw(ArgumentError("names must be unique"))
  @inbounds for (i,k) in enumerate(newnames)
-        c.names[i] = k
-        c.smap[k] = i
+        _names(c)[i] = k
+        _smap(c)[k] = i
     end
 end
