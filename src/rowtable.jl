@@ -1,16 +1,24 @@
 ### RowTable
 
 mutable struct RowTable <: AbstractRowTable
-    rows::Array{Any}
+    rows::Vector
     colindex::CIndex
+    function RowTable(rows::Vector{Any}, colindex::CIndex)
+        new(rows,colindex)
+    end
 end
+
+# For efficiency, we either need to do use these methods, or else
+# make a typed RowTable
+RowTable(rows::Vector,colindex::CIndex) = RowTable(Any[r for r in rows],colindex)
+
 
 ##############################################################################
 
 ### Access
 
-@inline _index(rt::RowTable) = rt.colindex
-@inline colindex(rt::RowTable,ci) = _index(rt)[ci]
+@inline cindex(rt::RowTable) = rt.colindex
+@inline colindex(rt::RowTable,ci) = cindex(rt)[ci]  # use this, or not
 
 """
     rows(rt::RowTable)
@@ -24,8 +32,8 @@ Return the rows of `rt` as a Vector.
 # So... TODO: remove return type annotations more or less everywhere
 # @inline rows(rt::RowTable)::Vector = rt.rows
 
-Base.names(rt::RowTable) = _names(_index(rt))
-_names(rt::RowTable) = _names(_index(rt))
+Base.names(rt::RowTable) = _names(cindex(rt))
+_names(rt::RowTable) = _names(cindex(rt))
 Base.size(rt::RowTable) =   _numberofrows(rt), _numberofcols(rt)
 _numberofcols(rt::RowTable) = length(_names(rt))
 _numberofrows(rt::RowTable) = length(rows(rt)) # should be the same as below
@@ -38,7 +46,7 @@ Base.size(rt::RowTable,n::Integer) = n == 1 ? _numberofrows(rt) : n == 2 ? _numb
 
 ### Equality
 
-Base.:(==)(rt1::RowTable, rt2::RowTable) = (_index(rt1) == _index(rt2) && rows(rt1) == rows(rt2))
+Base.:(==)(rt1::RowTable, rt2::RowTable) = (cindex(rt1) == cindex(rt2) && rows(rt1) == rows(rt2))
 
 ### Constructors
 
@@ -141,7 +149,7 @@ const ColInd = Union{Integer,Symbol}
 Base.getindex(rt::RowTable,cinds) = rt[:,cinds]
 
 ## Return element in a single cell
-Base.getindex(rt::RowTable,ri::Integer, ci::Symbol) = rows(rt)[ri][_index(rt)[ci]]
+Base.getindex(rt::RowTable,ri::Integer, ci::Symbol) = rows(rt)[ri][cindex(rt)[ci]]
 
 # If above is called in a loop with symbol arg, using below is faster
 
@@ -156,7 +164,7 @@ end
 
 ## Return a slice of a row as a Vector
 Base.getindex(rt::RowTable, ri::Integer, cis::AbstractVector{T}) where T<:Symbol =
-    rows(rt)[ri][[_index(rt)[ci] for ci in cis]]
+    rows(rt)[ri][[cindex(rt)[ci] for ci in cis]]
 
 ### Return a row as a Vector
 Base.getindex(rt::RowTable, ri::Integer, ::Colon) = rt.rows[ri]
@@ -164,7 +172,7 @@ Base.getindex(rt::RowTable, ri::Integer, ::Colon) = rt.rows[ri]
 ## Return slice as RowTable
 ## Following method calls the next method with integer arguments
 Base.getindex(rt::RowTable,ri::AbstractVector{T}, ci::AbstractVector{V}) where {T<:Integer,V<:Symbol} =
-    Base.getindex(rt,ri, [_index(rt)[s] for s in ci])
+    Base.getindex(rt,ri, [cindex(rt)[s] for s in ci])
 
 ## Return rectangular slice in both dimensions as RowTable
 function Base.getindex(rt::RowTable,ri::AbstractVector, ci::AbstractVector{T}) where T<:Integer
@@ -172,7 +180,7 @@ function Base.getindex(rt::RowTable,ri::AbstractVector, ci::AbstractVector{T}) w
     for (i,ind) in enumerate(ri)
         ar[i] = rows(rt)[ind][ci]
     end
-    RowTable(ar, CIndex(_index(rt).names[ci]))
+    RowTable(ar, CIndex(cindex(rt).names[ci]))
 end
 
 #Base.getindex(rt::RowTable, ::Colon, ci) = Base.getindex(rt, 1:length(rt.rows), ci)
@@ -188,7 +196,7 @@ Base.getindex(rt::RowTable, ri::AbstractVector, ::Colon) = RowTable(rows(rt)[ri]
 
 ## Set single element
 Base.setindex!(rt::RowTable, val, ri::Integer, ci::Integer) = (rows(rt)[ri][ci] = val)
-Base.setindex!(rt::RowTable, val, ri::Integer, ci::Symbol) = (rows(rt)[ri][_index(rt)[ci]] = val)
+Base.setindex!(rt::RowTable, val, ri::Integer, ci::Symbol) = (rows(rt)[ri][cindex(rt)[ci]] = val)
 
 
 ### Convert
@@ -257,8 +265,8 @@ end
 
 ### Copy
 
-Base.copy(rt::RowTable) = RowTable(copy(rows(rt)), copy(_index(rt)))
-Base.deepcopy(rt::RowTable) = RowTable(deepcopy(rows(rt)), deepcopy(_index(rt)))
+Base.copy(rt::RowTable) = RowTable(copy(rows(rt)), copy(cindex(rt)))
+Base.deepcopy(rt::RowTable) = RowTable(deepcopy(rows(rt)), deepcopy(cindex(rt)))
 
 ### Iterate over rows
 ## DataFrames does not define iterating over a DataFrame.
@@ -299,5 +307,5 @@ Base.shuffle!(rt::RowTable) = (shuffle!(rows(rt)); rt)
 Base.shuffle(rt::RowTable) = shuffle!(copy(rt))
 Base.shuffle(rng::AbstractRNG,rt::RowTable) = shuffle!(rng,copy(rt))
 
-DataFrames.rename!(rt::RowTable,d) = (rename!(_index(rt),d); rt)
+DataFrames.rename!(rt::RowTable,d) = (rename!(cindex(rt),d); rt)
 DataFrames.rename(rt::RowTable,d) = rename!(copy(rt),d)

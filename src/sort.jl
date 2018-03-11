@@ -14,7 +14,7 @@ function Base.sort!(rt::RowTable; cols=[], kws...)
     if isempty(cols)
         icols = collect(1:size(rt,2))
     else
-        icols = _index(rt)[cols]
+        icols = cindex(rt)[cols]
     end
     nc = length(icols)
     if nc == 1

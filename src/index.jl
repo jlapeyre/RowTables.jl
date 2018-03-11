@@ -45,7 +45,7 @@ Base.:(==)(c1::CIndex, c2::CIndex) = (_names(c1) == _names(c2))
 
 ### Copy
 
-Base.copy(ci::CIndex) = CIndex(copy(_names(ci)),copy(ci.smap))
+@inline Base.copy(ci::CIndex) = CIndex(copy(ci.names),copy(ci.smap))
 Base.deepcopy(ci::CIndex) = CIndex(deepcopy(_names(ci)),deepcopy(ci.smap))
 
 ### Rename
