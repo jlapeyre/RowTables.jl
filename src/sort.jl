@@ -3,8 +3,8 @@
 function _col_lt(ci...)
     function (x,y)
         for c in ci
-            x[c] < y[c] && return true
-            x[c] > y[c] && return false
+            x[c] == y[c] && continue
+            return isless(x[c],y[c])
         end
         return false
     end
@@ -19,8 +19,7 @@ function Base.sort!(rt::RowTable; cols=[], kws...)
     nc = length(icols)
     if nc == 1
         c = icols[1]
-        #        Base.sort!(rows(rt); by= x->x[icols[1]], kws...)
-        Base.sort!(rows(rt); lt = (x,y)->x[c]<y[c], kws...) # seems lt is faster than by
+        Base.sort!(rows(rt); lt = (x,y)-> isless(x[c],y[c]), kws...)
     else
         Base.sort!(rows(rt); lt=_col_lt(icols...), kws...)
     end
