@@ -70,3 +70,8 @@ DataFrames.head(rt::RowTable, r::Int) = rt[1:min(r,size(rt,1)), :]
 DataFrames.head(rt::RowTable) = DataFrames.head(rt, 6)
 DataFrames.tail(rt::RowTable, r::Int) = rt[max(1,size(rt,1)-r+1):size(rt,1), :]
 DataFrames.tail(rt::RowTable) = DataFrames.tail(rt, 6)
+
+function Base.summary(rt::RowTable) # -> String
+    nrows, ncols = size(rt)
+    return @sprintf("%d×%d %s", nrows, ncols, typeof(rt))
+end

@@ -29,15 +29,13 @@ Return the rows of `rt` as a Vector.
 
 # Annotating the method above with return type Vector makes it 1000x slower in v0.6,
 # and only a bit less slower in v0.7.
-# So... TODO: remove return type annotations more or less everywhere
 # @inline rows(rt::RowTable)::Vector = rt.rows
 
 Base.names(rt::RowTable) = _names(cindex(rt))
 _names(rt::RowTable) = _names(cindex(rt))
 Base.size(rt::RowTable) =   _numberofrows(rt), _numberofcols(rt)
 _numberofcols(rt::RowTable) = length(_names(rt))
-_numberofrows(rt::RowTable) = length(rows(rt)) # should be the same as below
-#_numberofrows(rt::RowTable) = isempty(rows(rt)) ? 0 : length(rows(rt))
+_numberofrows(rt::RowTable) = length(rows(rt))
 
 ## TODO: make sure this is optimized if n is known at compile time
 ## (And even if not known)
@@ -64,7 +62,6 @@ else
                          Base.KeyIterator{T} where T<:AbstractDict{V} where V <: Union{W,Symbol} where W <: AbstractString}
 end
 
-# @inbounds on a function does nothing
 function _RowTable(a,keynames)
     isempty(a) && return RowTable(newrows(),CIndex(map(Symbol,keynames))) # JSON keys are strings
     l = length(first(a))
@@ -80,7 +77,6 @@ function _RowTable(::Type{T} , a::AbstractVector, keynames) where T <: AbstractA
 end
 
 function _RowTable(::Type{T} , a::AbstractVector, keynames) where T <: Tuple
-    #all(x -> isa(x,AbstractArray), a) || error("Not all elements are arrays")  # They don't have to be. Just not dicts
     RowTable(a,CIndex(keynames))
 end
 
@@ -120,19 +116,6 @@ function RowTable(df::DataFrames.DataFrame; tuples=false)
     RowTable(arr, copy(names(df)))
 end
 
-### Info
-
-function Base.summary(rt::RowTable) # -> String
-    nrows, ncols = size(rt)
-    return @sprintf("%d×%d %s", nrows, ncols, typeof(rt))
-end
-
-
-##############################################################################
-##
-## Indexing
-##
-##############################################################################
 
 ##############################################################################
 ##
@@ -183,7 +166,6 @@ function Base.getindex(rt::RowTable,ri::AbstractVector, ci::AbstractVector{T}) w
     RowTable(ar, CIndex(cindex(rt).names[ci]))
 end
 
-#Base.getindex(rt::RowTable, ::Colon, ci) = Base.getindex(rt, 1:length(rt.rows), ci)
 Base.getindex(rt::RowTable, ::Colon, ci) = rt[1:length(rows(rt)),ci]
 
 Base.getindex(rt::RowTable, ri::AbstractVector, ::Colon) = RowTable(rows(rt)[ri], rt.colindex)
@@ -194,7 +176,7 @@ Base.getindex(rt::RowTable, ri::AbstractVector, ::Colon) = RowTable(rows(rt)[ri]
 ##
 ##############################################################################
 
-## Set single element
+## Set a single element
 Base.setindex!(rt::RowTable, val, ri::Integer, ci::Integer) = (rows(rt)[ri][ci] = val)
 Base.setindex!(rt::RowTable, val, ri::Integer, ci::Symbol) = (rows(rt)[ri][cindex(rt)[ci]] = val)
 
@@ -206,10 +188,6 @@ Base.setindex!(rt::RowTable, val, ri::Integer, ci::Symbol) = (rows(rt)[ri][cinde
 
 Return the columns of `rt`.
 """
-## TODO: should the columns have more efficient types ?
-## Yes, because this is used to construct DataFrames
-## But, attempts to determine eltype by scanning are very slow
-## This is much slower than converting in the other direction.
 function columns(rt::RowTable)
     (nr,nc) = size(rt)
     @inbounds colarr =  [newrows(nr) for i in 1:nc] # misusing newrows for columns here
@@ -222,8 +200,6 @@ function columnstyped(rt::RowTable)
     return _columns!(rt,colarr)
 end
 
-## factoring this out makes columnstyped > 10% slower for a test case,
-## if not prefixed with @inline
 @inline function _columns!(rt, colarr)
     (nr,nc) = size(rt)
     for rowind in 1:nr
@@ -236,19 +212,19 @@ end
 end
 
 ## This is slow, so we don't use it
-function _coltype(rt::RowTable, cind::Int)
-    nr = size(rt,1)
-    nr == 0 && return Any
-    t = typeof(rt[1,cind])
-    onetype::Bool = true
-    for rowind in 2:nr
-        if ! isa(rt[rowind,cind],t)
-            onetype = false
-            break
-        end
-    end
-    return col = (onetype ? t : Any)
-end
+# function _coltype(rt::RowTable, cind::Int)
+#     nr = size(rt,1)
+#     nr == 0 && return Any
+#     t = typeof(rt[1,cind])
+#     onetype::Bool = true
+#     for rowind in 2:nr
+#         if ! isa(rt[rowind,cind],t)
+#             onetype = false
+#             break
+#         end
+#     end
+#     return col = (onetype ? t : Any)
+# end
 
 """
     DataFrame(rt::RowTable; typed=false)
@@ -269,8 +245,8 @@ Base.copy(rt::RowTable) = RowTable(copy(rows(rt)), copy(cindex(rt)))
 Base.deepcopy(rt::RowTable) = RowTable(deepcopy(rows(rt)), deepcopy(cindex(rt)))
 
 ### Iterate over rows
-## DataFrames does not define iterating over a DataFrame.
-## We do for RowTable
+## DataFrames does not define iterating over a DataFrame, rather requires
+## specifying rows or columns
 
 for f in (:length, :start, :endof)
     @eval begin

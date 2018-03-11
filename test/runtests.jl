@@ -1,6 +1,7 @@
 using Compat, Compat.Test
 using RowTables
 using DataStructures
+using DataFrames
 
 @test size(RowTable()) == (0,0)
 
