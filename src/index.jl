@@ -39,7 +39,9 @@ Base.:(==)(c1::CIndex, c2::CIndex) = (_names(c1) == _names(c2))
 @inline Base.getindex(c::CIndex, inds) = inds
 @inline Base.getindex(c::CIndex, s::Symbol) = _smap(c)[s]  # returns Int
 # can we avoid allocation by returning an iterator ?
-Base.getindex(c::CIndex, syms::AbstractVector{T}) where T <: Symbol = [_smap(c)[s] for s in syms]
+@inline Base.getindex(c::CIndex, syms::AbstractVector{T}) where T <: Symbol = [_smap(c)[s] for s in syms]
+@inline Base.getindex(c::CIndex, inds::AbstractVector{T}) where T <: Integer = inds
+@inline Base.getindex(c::CIndex, inds::AbstractVector) = [isa(s,Symbol) ?  _smap(c)[s] : s  for s in inds]
 
 ### Copy
 

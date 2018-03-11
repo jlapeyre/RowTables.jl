@@ -165,15 +165,14 @@ Base.getindex(rt::RowTable, ri::Integer, ::Colon) = rt.rows[ri]
 ## Following method calls the next method with integer arguments
 Base.getindex(rt::RowTable,ri::AbstractVector{T}, ci::AbstractVector{V}) where {T<:Integer,V<:Symbol} =
     Base.getindex(rt,ri, [_index(rt)[s] for s in ci])
-#    Base.getindex(rt,ri, [_index(rt).smap[s] for s in ci])
 
 ## Return rectangular slice in both dimensions as RowTable
 function Base.getindex(rt::RowTable,ri::AbstractVector, ci::AbstractVector{T}) where T<:Integer
     ar = newrows(length(ri))
     for (i,ind) in enumerate(ri)
-        ar[i] = rt.rows[ind][ci]
+        ar[i] = rows(rt)[ind][ci]
     end
-    RowTable(ar, CIndex(rt.colindex.names[ci]))
+    RowTable(ar, CIndex(_index(rt).names[ci]))
 end
 
 #Base.getindex(rt::RowTable, ::Colon, ci) = Base.getindex(rt, 1:length(rt.rows), ci)
@@ -187,8 +186,9 @@ Base.getindex(rt::RowTable, ri::AbstractVector, ::Colon) = RowTable(rows(rt)[ri]
 ##
 ##############################################################################
 
+## Set single element
 Base.setindex!(rt::RowTable, val, ri::Integer, ci::Integer) = (rows(rt)[ri][ci] = val)
-Base.setindex!(rt::RowTable, val, ri::Integer, ci::Symbol) = (rows(rt)[ri][ci] = val)
+Base.setindex!(rt::RowTable, val, ri::Integer, ci::Symbol) = (rows(rt)[ri][_index(rt)[ci]] = val)
 
 
 ### Convert
@@ -264,7 +264,7 @@ Base.deepcopy(rt::RowTable) = RowTable(deepcopy(rows(rt)), deepcopy(_index(rt)))
 ## DataFrames does not define iterating over a DataFrame.
 ## We do for RowTable
 
-for f in (:length, :start)
+for f in (:length, :start, :endof)
     @eval begin
         (Base.$f)(rt::RowTable) = (Base.$f)(rows(rt))
     end
