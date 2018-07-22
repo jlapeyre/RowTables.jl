@@ -40,7 +40,6 @@ function rowdict(rt::RowTable, rowind::Integer)
     RowDict(od)
 end
 
-
 """
     rowdict(rt::RowTable, rowinds::AbstractVector)
 

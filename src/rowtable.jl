@@ -1,24 +1,20 @@
-### RowTable
-
 mutable struct RowTable <: AbstractRowTable
     rows::Vector
     colindex::CIndex
     function RowTable(rows::Vector{Any}, colindex::CIndex)
-        new(rows,colindex)
+        new(rows, colindex)
     end
 end
 
 # For efficiency, we either need to do use these methods, or else
 # make a typed RowTable
-RowTable(rows::Vector,colindex::CIndex) = RowTable(Any[r for r in rows],colindex)
-
-
-##############################################################################
+#RowTable(rows::Vector, colindex::CIndex) = RowTable(Any[r for r in rows], colindex)
+RowTable(rows::Vector, colindex::CIndex) = RowTable(Any[rows...], colindex)
 
 ### Access
 
 @inline cindex(rt::RowTable) = rt.colindex
-@inline colindex(rt::RowTable,ci) = cindex(rt)[ci]  # use this, or not
+@inline colindex(rt::RowTable, ci) = cindex(rt)[ci]  # use this, or not
 
 """
     rows(rt::RowTable)
@@ -39,7 +35,7 @@ _numberofrows(rt::RowTable) = length(rows(rt))
 
 ## TODO: make sure this is optimized if n is known at compile time
 ## (And even if not known)
-Base.size(rt::RowTable,n::Integer) = n == 1 ? _numberofrows(rt) : n == 2 ? _numberofcols(rt) :
+Base.size(rt::RowTable, n::Integer) = n == 1 ? _numberofrows(rt) : n == 2 ? _numberofcols(rt) :
     error(ArgumentError, ": RowTables have only two dimensions")
 
 ### Equality
@@ -48,74 +44,64 @@ Base.:(==)(rt1::RowTable, rt2::RowTable) = (cindex(rt1) == cindex(rt2) && rows(r
 
 ### Constructors
 
-newrows(n::Integer=0) = Vector{Any}(uninitialized, n)
+newrows(n::Integer=0) = Vector{Any}(undef, n)
 
 # emtpy RowTable
-RowTable() = RowTable(newrows(),CIndex())
+RowTable() = RowTable(newrows(), CIndex())
 
 ## We did not use the type information afterall.
+const _NameTypes = Union{AbstractVector{S} where S<:Union{Symbol, AbstractString}}
 
-if VERSION >=  v"0.7.0-DEV"
-     const _NameTypes = Union{AbstractVector{S} where S<:Union{Symbol,AbstractString}}
-else
-    const _NameTypes = Union{AbstractVector{S} where S<:Union{Symbol,AbstractString},
-                         Base.KeyIterator{T} where T<:AbstractDict{V} where V <: Union{W,Symbol} where W <: AbstractString}
-end
-
-function _RowTable(a,keynames)
-    isempty(a) && return RowTable(newrows(),CIndex(map(Symbol,keynames))) # JSON keys are strings
+function _RowTable(a, keynames)
+    isempty(a) && return RowTable(newrows(), CIndex(map(Symbol, keynames))) # JSON keys are strings
     l = length(first(a))
     all(x -> length(x) == l, a) || throw(DiminsionMismatch("All dictionaries must be of the same length"))
-    RowTable([map(x -> a[i][x],keynames) for i in linearindices(a)], CIndex(map(Symbol,keynames)))
+    RowTable([map(x -> a[i][x], keynames) for i in LinearIndices(a)], CIndex(map(Symbol, keynames)))
 end
 
-RowTable(a::AbstractVector{T},keynames::_NameTypes) where {T<:AbstractDict} = _RowTable(a,keynames)
+RowTable(a::AbstractVector{T}, keynames::_NameTypes) where {T<:AbstractDict} = _RowTable(a, keynames)
 
-function _RowTable(::Type{T} , a::AbstractVector, keynames) where T <: AbstractArray
-    all(x -> isa(x,AbstractArray), a) || error("Not all elements are arrays")  # They don't have to be. Just not dicts
-    RowTable(a,CIndex(keynames))
+function _RowTable(::Type{T}, a::AbstractVector, keynames) where T <: AbstractArray
+    all(x -> isa(x, AbstractArray), a) || error("Not all elements are arrays")  # They don't have to be. Just not dicts
+    RowTable(a, CIndex(keynames))
 end
 
-function _RowTable(::Type{T} , a::AbstractVector, keynames) where T <: Tuple
-    RowTable(a,CIndex(keynames))
+function _RowTable(::Type{T}, a::AbstractVector, keynames) where T <: Tuple
+    RowTable(a, CIndex(keynames))
 end
 
 # v0.7 requires collect (or something else) here to avoid constructing a Set, which prevents indexing
-_RowTable(::Type{T} , a::AbstractVector) where T <: AbstractDict  = _RowTable(T, a, collect(keys(first(a))))
+_RowTable(::Type{T}, a::AbstractVector) where T <: AbstractDict  = _RowTable(T, a, collect(keys(first(a))))
 
-function _RowTable(::Type{T} , a::AbstractVector, keynames) where T <: AbstractDict
-    all(x -> isa(x,AbstractDict), a) || error("Not all elements are dictionaries")
-    _RowTable(a,keynames)
+function _RowTable(::Type{T}, a::AbstractVector, keynames) where T <: AbstractDict
+    all(x -> isa(x, AbstractDict), a) || error("Not all elements are dictionaries")
+    _RowTable(a, keynames)
 end
 
 function RowTable(a::AbstractVector)
     isempty(a) && return RowTable()
-    _RowTable(typeof(first(a)),a)
+    _RowTable(typeof(first(a)), a)
 end
 
-function RowTable(a::AbstractVector,keynames::_NameTypes)
+function RowTable(a::AbstractVector, keynames::_NameTypes)
     isempty(a) && return RowTable() # TODO fix this to take names
-    _RowTable(typeof(first(a)),a,keynames)
+    _RowTable(typeof(first(a)), a, keynames)
 end
 
 function RowTable(df::DataFrames.DataFrame; tuples=false)
-    (nr,nc) = size(df)
-#    arr = Vector{Any}(uninitialized,nr)
+    (nr, nc) = size(df)
     arr = newrows()
     if tuples
-      @inbounds   for ri in 1:nr
-#          arr[ri] = ([df[ri,ci] for ci in 1:nc]...,)
-            push!(arr, ([df[ri,ci] for ci in 1:nc]...,))
+        @inbounds   for ri in 1:nr
+            push!(arr, ([df[ri, ci] for ci in 1:nc]...,))
         end
     else
-      @inbounds for ri in 1:nr
-#          arr[ri] = [df[ri,ci] for ci in 1:nc]
-            push!(arr, [df[ri,ci] for ci in 1:nc])
+        @inbounds for ri in 1:nr
+            push!(arr, [df[ri, ci] for ci in 1:nc])
         end
     end
     RowTable(arr, copy(names(df)))
 end
-
 
 ##############################################################################
 ##
@@ -126,23 +112,22 @@ end
 ## This allows single methods to handle both Int and Symbol indices.
 ## But, it allows repeated mapping of the same Symbol, which is inefficient.
 ## So, this might not be used much
-const ColInd = Union{Integer,Symbol}
+const ColInd = Union{Integer, Symbol}
 
 ## A single index is a interpreted as a column index, consistent with DataFrames
-Base.getindex(rt::RowTable,cinds) = rt[:,cinds]
+Base.getindex(rt::RowTable, cinds) = rt[:,cinds]
 
 ## Return element in a single cell
-Base.getindex(rt::RowTable,ri::Integer, ci::Symbol) = rows(rt)[ri][cindex(rt)[ci]]
+Base.getindex(rt::RowTable, ri::Integer, ci::Symbol) = rows(rt)[ri][cindex(rt)[ci]]
 
 # If above is called in a loop with symbol arg, using below is faster
 
-Base.getindex(rt::RowTable,ri::Integer, ci::Integer) = rows(rt)[ri][ci]
-
+Base.getindex(rt::RowTable, ri::Integer, ci::Integer) = rows(rt)[ri][ci]
 
 ## Return a slice of a column as a Vector
-function Base.getindex(rt::RowTable,ri::AbstractVector,ci::ColInd)
-    ind = colindex(rt,ci) # do this so symbol mapping is only done once
-    [rt[i,ind] for i in ri]
+function Base.getindex(rt::RowTable, ri::AbstractVector, ci::ColInd)
+    ind = colindex(rt, ci) # do this so symbol mapping is only done once
+    [rt[i, ind] for i in ri]
 end
 
 ## Return a slice of a row as a Vector
@@ -154,19 +139,19 @@ Base.getindex(rt::RowTable, ri::Integer, ::Colon) = rt.rows[ri]
 
 ## Return slice as RowTable
 ## Following method calls the next method with integer arguments
-Base.getindex(rt::RowTable,ri::AbstractVector{T}, ci::AbstractVector{V}) where {T<:Integer,V<:Symbol} =
-    Base.getindex(rt,ri, [cindex(rt)[s] for s in ci])
+Base.getindex(rt::RowTable, ri::AbstractVector{T}, ci::AbstractVector{V}) where {T<:Integer,V<:Symbol} =
+    Base.getindex(rt, ri, [cindex(rt)[s] for s in ci])
 
 ## Return rectangular slice in both dimensions as RowTable
-function Base.getindex(rt::RowTable,ri::AbstractVector, ci::AbstractVector{T}) where T<:Integer
+function Base.getindex(rt::RowTable, ri::AbstractVector, ci::AbstractVector{T}) where T<:Integer
     ar = newrows(length(ri))
-    for (i,ind) in enumerate(ri)
+    for (i, ind) in enumerate(ri)
         ar[i] = rows(rt)[ind][ci]
     end
     RowTable(ar, CIndex(cindex(rt).names[ci]))
 end
 
-Base.getindex(rt::RowTable, ::Colon, ci) = rt[1:length(rows(rt)),ci]
+Base.getindex(rt::RowTable, ::Colon, ci) = rt[1:length(rows(rt)), ci]
 
 Base.getindex(rt::RowTable, ri::AbstractVector, ::Colon) = RowTable(rows(rt)[ri], rt.colindex)
 
@@ -180,7 +165,6 @@ Base.getindex(rt::RowTable, ri::AbstractVector, ::Colon) = RowTable(rows(rt)[ri]
 Base.setindex!(rt::RowTable, val, ri::Integer, ci::Integer) = (rows(rt)[ri][ci] = val)
 Base.setindex!(rt::RowTable, val, ri::Integer, ci::Symbol) = (rows(rt)[ri][cindex(rt)[ci]] = val)
 
-
 ### Convert
 
 """
@@ -189,19 +173,19 @@ Base.setindex!(rt::RowTable, val, ri::Integer, ci::Symbol) = (rows(rt)[ri][cinde
 Return the columns of `rt`.
 """
 function columns(rt::RowTable)
-    (nr,nc) = size(rt)
+    (nr, nc) = size(rt)
     @inbounds colarr =  [newrows(nr) for i in 1:nc] # misusing newrows for columns here
-    return _columns!(rt,colarr)
+    return _columns!(rt, colarr)
 end
 
 function columnstyped(rt::RowTable)
-    (nr,nc) = size(rt)
-    @inbounds colarr =  [Vector{typeof(rt[1,i])}(uninitialized,nr) for i in 1:nc]
-    return _columns!(rt,colarr)
+    (nr, nc) = size(rt)
+    @inbounds colarr =  [Vector{typeof(rt[1, i])}(undef, nr) for i in 1:nc]
+    return _columns!(rt, colarr)
 end
 
 @inline function _columns!(rt, colarr)
-    (nr,nc) = size(rt)
+    (nr, nc) = size(rt)
     for rowind in 1:nr
       @inbounds row = rows(rt)[rowind]
         for colind in 1:nc
@@ -210,21 +194,6 @@ end
     end
     return colarr
 end
-
-## This is slow, so we don't use it
-# function _coltype(rt::RowTable, cind::Int)
-#     nr = size(rt,1)
-#     nr == 0 && return Any
-#     t = typeof(rt[1,cind])
-#     onetype::Bool = true
-#     for rowind in 2:nr
-#         if ! isa(rt[rowind,cind],t)
-#             onetype = false
-#             break
-#         end
-#     end
-#     return col = (onetype ? t : Any)
-# end
 
 """
     DataFrame(rt::RowTable; typed=false)
@@ -248,15 +217,15 @@ Base.deepcopy(rt::RowTable) = RowTable(deepcopy(rows(rt)), deepcopy(cindex(rt)))
 ## DataFrames does not define iterating over a DataFrame, rather requires
 ## specifying rows or columns
 
-for f in (:length, :start, :endof)
+for f in (:length, :start, :endof, :iterate)
     @eval begin
         (Base.$f)(rt::RowTable) = (Base.$f)(rows(rt))
     end
 end
 
-for f in (:next, :done)
+for f in (:next, :done, :iterate)
     @eval begin
-        (Base.$f)(rt::RowTable,args...) = (Base.$f)(rows(rt),args...)
+        (Base.$f)(rt::RowTable, args...) = (Base.$f)(rows(rt), args...)
     end
 end
 
@@ -264,24 +233,23 @@ end
 
 for f in (:deleteat!, :push!, :insert!, :unshift!, :append!, :prepend!, :splice!, :permute!)
     @eval begin
-        (Base.$f)(rt::RowTable,args...) = (($f)(rows(rt),args...); rt)
+        (Base.$f)(rt::RowTable, args...) = (($f)(rows(rt), args...); rt)
     end
 end
 
-for f in (:pop!,:shift!)
+for f in (:pop!, :popfirst!)
     @eval begin
-        (Base.$f)(rt::RowTable,args...) = ($f)(rows(rt),args...)
+        (Base.$f)(rt::RowTable, args...) = ($f)(rows(rt), args...)
     end
 end
 
-## These are needed so that our methods are called, and not generic Base methods.
-Base.permute!(rt::RowTable,p::AbstractVector) = (permute!(rows(rt),p); rt)
-Base.permute(rt::RowTable,p::AbstractVector) = permute!(copy(rt),p)
+permute!(rt::RowTable, p::AbstractVector) = (permute!(rows(rt), p); rt)
+permute(rt::RowTable, p::AbstractVector) = permute!(copy(rt), p)
 
-Base.shuffle!(rng::AbstractRNG, rt::RowTable) = (shuffle!(rng,rows(rt)); rt)
-Base.shuffle!(rt::RowTable) = (shuffle!(rows(rt)); rt)
-Base.shuffle(rt::RowTable) = shuffle!(copy(rt))
-Base.shuffle(rng::AbstractRNG,rt::RowTable) = shuffle!(rng,copy(rt))
+Random.shuffle!(rng::Random.AbstractRNG, rt::RowTable) = (shuffle!(rng, rows(rt)); rt)
+Random.shuffle!(rt::RowTable) = (shuffle!(rows(rt)); rt)
+Random.shuffle(rt::RowTable) = shuffle!(copy(rt))
+Random.shuffle(rng::Random.AbstractRNG, rt::RowTable) = shuffle!(rng, copy(rt))
 
-DataFrames.rename!(rt::RowTable,d) = (rename!(cindex(rt),d); rt)
-DataFrames.rename(rt::RowTable,d) = rename!(copy(rt),d)
+DataFrames.rename!(rt::RowTable, d) = (rename!(cindex(rt), d); rt)
+DataFrames.rename(rt::RowTable, d) = rename!(copy(rt), d)
