@@ -1,25 +1,27 @@
 using Revise
 using RowTables
 using DataFrames
-using DataFramesUtils
 using BenchmarkTools
 
+# using DataFramesUtils
+
+
 # Same example as in runtests
-ds = [
-    Dict(:a=>2,:b=>1,:c=>7)
-    Dict(:a=>10,:b=>4,:c=>7)
-    Dict(:a=>1,:b=>4,:c=>8)
-    Dict(:a=>10,:b=>4,:c=>1)
-    Dict(:a=>9,:b=>6,:c=>4)
-    Dict(:a=>10,:b=>4,:c=>3)]
+# ds = [
+#     Dict(:a=>2,:b=>1,:c=>7)
+#     Dict(:a=>10,:b=>4,:c=>7)
+#     Dict(:a=>1,:b=>4,:c=>8)
+#     Dict(:a=>10,:b=>4,:c=>1)
+#     Dict(:a=>9,:b=>6,:c=>4)
+#     Dict(:a=>10,:b=>4,:c=>3)]
 
-rt = RowTable(ds,[:a,:b,:c])
-df = DataFrame(rt)
+# rt = RowTable(ds,[:a,:b,:c])
+# df = DataFrame(rt)
 
-df2 = DataFramesUtils.gentestdf()
-rt2 = RowTable(df2)
+# df2 = DataFramesUtils.gentestdf()
+# rt2 = RowTable(df2)
 
-rt3 = RowTable([[rand(),rand(),rand()] for i in 1:10^3], [:a,:b,:c])
+rt3 = RowTable([[rand(),rand(),rand()] for i in 1:10^3], [:a,:b,:c]);
 
 function mkbigdf(nr,nc)
     cols = Any[]
@@ -30,10 +32,13 @@ function mkbigdf(nr,nc)
     DataFrame(cols,syms)
 end
 
-function randsort(obj,ntrials)
-    for i in 1:ntrials
-        sort!(obj,cols=[rand(1:size(obj,2))])
-    end
+function randsort!(obj::RowTable)
+    sort!(obj,cols=[rand(1:size(obj,2))])
+    nothing
+end
+
+function randsort!(obj::DataFrame)
+    sort!(obj, [rand(1:size(obj,2))])
     nothing
 end
 
