@@ -28,7 +28,7 @@ julia> ds = [
            Dict(:a=>10,:b=>8,:c=>7)
            Dict(:a=>10,:b=>4,:c=>3)];
 
-julia> rt = RowTable(ds,[:a,:b,:c])
+julia> rt = RowTable(ds)
 5×3 RowTable
 │ Row │ a  │ b │ c │
 ├─────┼────┼───┼───┤
@@ -160,7 +160,7 @@ julia> @btime rtb[:, 50:55];
 Sorting rows on one column is faster with `RowTable`
 ```julia
 function randsort!(obj::RowTable)
-    sort!(obj,cols=[rand(1:size(obj,2))])
+    sort!(obj, [rand(1:size(obj,2))])
     nothing
 end
 

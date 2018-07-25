@@ -10,7 +10,12 @@ function _col_lt(icols...)
     end
 end
 
-function Base.sort!(rt::RowTable; cols=[], kws...)
+"""
+    sort!(rt::RowTable; cols=[], kws...)
+
+Sort `rt` by columns `cols`.
+"""
+function Base.sort!(rt::RowTable, cols=[]; kws...)
     if isempty(cols)
         icols = collect(1:size(rt, 2))
     else
@@ -26,4 +31,4 @@ function Base.sort!(rt::RowTable; cols=[], kws...)
     return rt
 end
 
-Base.sort(rt::RowTable; kws...) = sort!(copy(rt); kws...)
+Base.sort(rt::RowTable, cols=[]; kws...) = sort!(copy(rt), cols; kws...)
