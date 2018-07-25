@@ -61,8 +61,9 @@ let
     end
 
     @testset "named tuples" begin
-        @test RowTable(cols=[[1,2], [3,4]], names = [:a, :b])[1,:] == (a = 1, b = 3)
+        @test RowTable(cols=[[1,2], [3,4]], names = [:a, :b], tuples=true)[1,:] == (a = 1, b = 3)
         @test RowTable(cols=[[1,2], [3,4]], names = [:a, :b], tuples=false)[1,:] == [1, 3]
+        @test RowTable(ds, [:a, :b, :c], tuples=true).rows[1] == (a = 2, b = 1, c = 7)
     end
 
     @testset "iteration" begin

@@ -2,7 +2,7 @@ name = "RowTables"
 desc = "Data table with row-wise storage"
 authors = ["John Lapeyre"]
 license = "MIT"
-version = "0.0.2"
+version = "0.0.3"
 uuid = "8613e064-8dc0-11e8-136e-21e5a510b4af"
 
 [deps]

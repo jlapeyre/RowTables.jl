@@ -6,13 +6,13 @@ mutable struct RowTable <: AbstractRowTable
     end
 end
 
-# For efficiency, we either need to do use these methods, or else
+# For efficiency, we either need to use these methods, or else
 # make a typed RowTable
-#RowTable(rows::Vector, colindex::CIndex) = RowTable(Any[r for r in rows], colindex)
+# RowTable(rows::Vector, colindex::CIndex) = RowTable(Any[r for r in rows], colindex)
 """
     RowTable(rows::Vector, colindex::CIndex)
 
-Construct a `RowTable` from a `Vector` of rows and a list of column names.
+Construct a `RowTable` from `rows` and a list of column names `colindex`.
 """
 RowTable(rows::Vector, colindex::CIndex) = RowTable(Any[rows...], colindex)
 
@@ -66,15 +66,25 @@ newrows(n::Integer=0) = Vector{Any}(undef, n)
 ## We did not use the type information afterall.
 const _NameTypes = Union{AbstractVector{S} where S<:Union{Symbol, AbstractString}, Tuple}
 
-function _RowTable(a::AbstractVector{T}, keynames) where {T <: AbstractDict}
+function _RowTable(a::AbstractVector{T}, keynames; tuples::Bool=false) where {T <: AbstractDict}
     isempty(a) && return RowTable(newrows(), CIndex(map(Symbol, keynames))) # JSON keys are strings
     l = length(first(a))
     all(x -> length(x) == l, a) || throw(DimensionMismatch("All dictionaries must be of the same length"))
-    RowTable([map(x -> a[i][x], keynames) for i in LinearIndices(a)], CIndex(map(Symbol, keynames)))
+    if tuples
+        RowTable([dict_to_named_tuple(a[i], keynames) for i in LinearIndices(a)], CIndex(map(Symbol, keynames)))
+    else
+        RowTable([map(x -> a[i][x], keynames) for i in LinearIndices(a)], CIndex(map(Symbol, keynames)))
+    end
+end
+
+# FIXME: ensue symbols as keys
+function dict_to_named_tuple(d::AbstractDict, keynames)
+    datatypes = Tuple{[typeof(d[k]) for k in keynames]...,}
+    return NamedTuple{(keynames...,), datatypes}(([d[k] for k in keynames]...,))
 end
 
 # Construct from Array of Dicts
-RowTable(a::AbstractVector{T}, keynames::_NameTypes) where {T<:AbstractDict} = _RowTable(a, keynames)
+RowTable(a::AbstractVector{T}, keynames::_NameTypes; tuples=false) where {T<:AbstractDict} = _RowTable(a, keynames, tuples=tuples)
 
 function _RowTable(::Type{T}, a::AbstractVector, keynames) where T <: AbstractArray
     all(x -> isa(x, AbstractArray), a) || error("Not all elements are arrays")  # They don't have to be. Just not dicts
@@ -88,9 +98,9 @@ end
 # v0.7 requires collect (or something else) here to avoid constructing a Set, which prevents indexing
 _RowTable(::Type{T}, a::AbstractVector) where T <: AbstractDict  = _RowTable(T, a, collect(keys(first(a))))
 
-function _RowTable(::Type{T}, a::AbstractVector, keynames) where T <: AbstractDict
+function _RowTable(::Type{T}, a::AbstractVector, keynames; tuples=false) where T <: AbstractDict
     all(x -> isa(x, AbstractDict), a) || error("Not all elements are dictionaries")
-    _RowTable(a, keynames)
+    _RowTable(a, keynames, tuples=tuples)
 end
 
 function RowTable(a::AbstractVector)
@@ -113,13 +123,13 @@ function RowTable(a::AbstractVector, keynames::_NameTypes)
 end
 
 """
-    RowTable(cols=[], names=[], tuples=true)
+    RowTable(cols=[], names=[], tuples=false)
 
 Return a `RowTable` constructed from the collection of columns `cols`,
 with `names`. If `tuples=true`, the rows are named tuples. Otherwise,
 they are `Array`s.
 """
-function RowTable(; cols=[], names=[], tuples=true)
+function RowTable(; cols=[], names=[], tuples=false)
     if isempty(cols)
         isempty(names) && return RowTable(newrows(), CIndex())
         return RowTable(newrows(), CIndex(names))
