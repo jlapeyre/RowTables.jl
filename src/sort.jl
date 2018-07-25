@@ -2,7 +2,7 @@
 
 function _col_lt(icols...)
     function (x, y)
-        for c in icols
+        @inbounds for c in icols
             x[c] == y[c] && continue
             return isless(x[c], y[c])
         end
@@ -18,8 +18,8 @@ function Base.sort!(rt::RowTable; cols=[], kws...)
     end
     nc = length(icols)
     if nc == 1
-        c = icols[1]
-        Base.sort!(rows(rt); lt = (x, y)-> isless(x[c], y[c]), kws...)
+        @inbounds c = icols[1]
+        Base.sort!(rows(rt); lt = (x, y)-> isless(@inbounds x[c], @inbounds y[c]), kws...)
     else
         Base.sort!(rows(rt); lt=_col_lt(icols...), kws...)
     end
