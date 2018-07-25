@@ -120,7 +120,14 @@ function RowTable(a::AbstractVector, keynames::_NameTypes)
     _RowTable(typeof(first(a)), a, keynames)
 end
 
-function RowTable(; cols=[], names=[])
+"""
+    RowTable(cols=[], names=[], tuples=true)
+
+Return a `RowTable` constructed from the collection of columns `cols`,
+with `names`. If `tuples=true`, the rows are named tuples. Otherwise,
+they are `Array`s.
+"""
+function RowTable(; cols=[], names=[], tuples=true)
     if isempty(cols)
         isempty(names) && return RowTable(newrows(), CIndex())
         return RowTable(newrows(), CIndex(names))
@@ -131,6 +138,11 @@ function RowTable(; cols=[], names=[])
     for c in cols
         (length(c) == columnlength) || throw(DimensionMismatch("Columns must have the same length."))
     end
+    rows = tuples ? namedtuple_rows(cols, names, columnlength) : array_rows(cols, columnlength)
+    return RowTable(rows, CIndex(names))
+end
+
+function namedtuple_rows(cols, names, columnlength)
     datatypetup = (collect(c[1] for c in cols)...,) |> typeof
     nametup = (names...,)
     namedtupletype = NamedTuple{nametup}{datatypetup}
@@ -138,7 +150,15 @@ function RowTable(; cols=[], names=[])
     for i in 1:columnlength
         rows[i] = namedtupletype(([c[i] for c in cols]...,))
     end
-    return RowTable(rows, CIndex(names))
+    return rows
+end
+
+function array_rows(cols, columnlength)
+    rows = newrows(columnlength)
+    for i in 1:columnlength
+        rows[i] = [c[i] for c in cols]
+    end
+    return rows
 end
 
 """
