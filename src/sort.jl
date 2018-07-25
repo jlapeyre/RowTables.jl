@@ -19,7 +19,7 @@ function Base.sort!(rt::RowTable; cols=[], kws...)
     nc = length(icols)
     if nc == 1
         @inbounds c = icols[1]
-        Base.sort!(rows(rt); lt = (x, y)-> isless(@inbounds x[c], @inbounds y[c]), kws...)
+        @inbounds Base.sort!(rows(rt); lt = (x, y)-> isless(x[c], y[c]), kws...)
     else
         Base.sort!(rows(rt); lt=_col_lt(icols...), kws...)
     end

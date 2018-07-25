@@ -9,6 +9,11 @@ end
 # For efficiency, we either need to do use these methods, or else
 # make a typed RowTable
 #RowTable(rows::Vector, colindex::CIndex) = RowTable(Any[r for r in rows], colindex)
+"""
+    RowTable(rows::Vector, colindex::CIndex)
+
+Construct a `RowTable` from a `Vector` of rows and a list of column names.
+"""
 RowTable(rows::Vector, colindex::CIndex) = RowTable(Any[rows...], colindex)
 
 ### Access
@@ -27,9 +32,20 @@ Return the rows of `rt` as a Vector.
 # and only a bit less slower in v0.7.
 # @inline rows(rt::RowTable)::Vector = rt.rows
 
+"""
+    names(rt::RowTable)
+
+Return a list of the column names of `rt`.
+"""
 Base.names(rt::RowTable) = _names(cindex(rt))
 _names(rt::RowTable) = _names(cindex(rt))
-Base.size(rt::RowTable) =   _numberofrows(rt), _numberofcols(rt)
+
+"""
+    size(rt::RowTable)
+
+Return the number of rows and the number columns in `rt`.
+"""
+Base.size(rt::RowTable) = _numberofrows(rt), _numberofcols(rt)
 _numberofcols(rt::RowTable) = length(_names(rt))
 _numberofrows(rt::RowTable) = length(rows(rt))
 
@@ -59,6 +75,7 @@ function _RowTable(a, keynames)
     RowTable([map(x -> a[i][x], keynames) for i in LinearIndices(a)], CIndex(map(Symbol, keynames)))
 end
 
+# Construct from Array of Dicts
 RowTable(a::AbstractVector{T}, keynames::_NameTypes) where {T<:AbstractDict} = _RowTable(a, keynames)
 
 function _RowTable(::Type{T}, a::AbstractVector, keynames) where T <: AbstractArray
@@ -84,10 +101,16 @@ function RowTable(a::AbstractVector)
 end
 
 function RowTable(a::AbstractVector, keynames::_NameTypes)
-    isempty(a) && return RowTable() # TODO fix this to take names
+    isempty(a) && return RowTable([], CIndex(keynames))
     _RowTable(typeof(first(a)), a, keynames)
 end
 
+"""
+    RowTable(df::DataFrames.DataFrame; tuples=false)
+
+Construct a `RowTable` from a `DataFrame`. If `tuples=true`
+then the constructed rows are `Tuples` rather than `Vectors`.
+"""
 function RowTable(df::DataFrames.DataFrame; tuples=false)
     (nr, nc) = size(df)
     arr = newrows()
