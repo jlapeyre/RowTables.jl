@@ -1,8 +1,8 @@
 # Minimal implementation. Sort by columns
 
-function _col_lt(ci...)
+function _col_lt(icols...)
     function (x, y)
-        for c in ci
+        for c in icols
             x[c] == y[c] && continue
             return isless(x[c], y[c])
         end
