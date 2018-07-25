@@ -62,7 +62,11 @@ Base.:(==)(rt1::RowTable, rt2::RowTable) = (cindex(rt1) == cindex(rt2) && rows(r
 
 newrows(n::Integer=0) = Vector{Any}(undef, n)
 
-# emtpy RowTable
+"""
+    RowTable()
+
+Construct a `0x0` `RowTable`
+"""
 RowTable() = RowTable(newrows(), CIndex())
 
 ## We did not use the type information afterall.
@@ -100,6 +104,13 @@ function RowTable(a::AbstractVector)
     _RowTable(typeof(first(a)), a)
 end
 
+"""
+    RowTable(a::AbstractVector, keynames::Vector{Symbol})
+
+Construct a `RowTable` from a vector of rows `a`, and `keynames`.
+
+`RowTable([], keynames)` constructs a `RowTable` with no rows.
+"""
 function RowTable(a::AbstractVector, keynames::_NameTypes)
     isempty(a) && return RowTable([], CIndex(keynames))
     _RowTable(typeof(first(a)), a, keynames)
@@ -115,7 +126,7 @@ function RowTable(df::DataFrames.DataFrame; tuples=false)
     (nr, nc) = size(df)
     arr = newrows()
     if tuples
-        @inbounds   for ri in 1:nr
+        @inbounds for ri in 1:nr
             push!(arr, ([df[ri, ci] for ci in 1:nc]...,))
         end
     else
