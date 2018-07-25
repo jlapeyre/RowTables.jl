@@ -24,7 +24,8 @@ RowTable(rows::Vector, colindex::CIndex) = RowTable(Any[rows...], colindex)
 """
     rows(rt::RowTable)
 
-Return the rows of `rt` as a Vector.
+Return the rows of `rt` as a Vector. `rt` itself is iteratble and
+iterates over rows. But, iterating over `rows(rt)` is faster.
 """
 @inline rows(rt::RowTable) = rt.rows
 
@@ -62,12 +63,13 @@ Base.:(==)(rt1::RowTable, rt2::RowTable) = (cindex(rt1) == cindex(rt2) && rows(r
 
 newrows(n::Integer=0) = Vector{Any}(undef, n)
 
-"""
-    RowTable()
+# """
+#     RowTable()
 
-Construct a `0x0` `RowTable`
-"""
-RowTable() = RowTable(newrows(), CIndex())
+# Construct a `0x0` `RowTable`
+# """
+## This is now covered by the named tuples constructor
+## RowTable() = RowTable(newrows(), CIndex())
 
 ## We did not use the type information afterall.
 const _NameTypes = Union{AbstractVector{S} where S<:Union{Symbol, AbstractString}, Tuple}
@@ -75,7 +77,7 @@ const _NameTypes = Union{AbstractVector{S} where S<:Union{Symbol, AbstractString
 function _RowTable(a, keynames)
     isempty(a) && return RowTable(newrows(), CIndex(map(Symbol, keynames))) # JSON keys are strings
     l = length(first(a))
-    all(x -> length(x) == l, a) || throw(DiminsionMismatch("All dictionaries must be of the same length"))
+    all(x -> length(x) == l, a) || throw(DimensionMismatch("All dictionaries must be of the same length"))
     RowTable([map(x -> a[i][x], keynames) for i in LinearIndices(a)], CIndex(map(Symbol, keynames)))
 end
 
@@ -109,13 +111,34 @@ end
 
 Construct a `RowTable` from a vector of rows `a`, and `keynames`.
 If `keynames` is a `Vector`, then the rows are `Vectors`.
-If `keynames` is a  `Tuple`, they are `Tuple`s.
+If `keynames` is a `Tuple`, they are `Tuple`s.
 
 `RowTable([], keynames)` constructs a `RowTable` with no rows.
 """
 function RowTable(a::AbstractVector, keynames::_NameTypes)
     isempty(a) && return RowTable([], CIndex(keynames))
     _RowTable(typeof(first(a)), a, keynames)
+end
+
+function RowTable(; cols=[], names=[])
+    if isempty(cols)
+        isempty(names) && return RowTable(newrows(), CIndex())
+        return RowTable(newrows(), CIndex(names))
+    end
+    length(cols) == length(names) || throw(DimensionMismatch("Number of columns and number of names must be equal."))
+    isempty(cols[1]) && throw(DimensionMismatch("Support for empty columns not implmented."))
+    columnlength = length(cols[1])
+    for c in cols
+        (length(c) == columnlength) || throw(DimensionMismatch("Columns must have the same length."))
+    end
+    datatypetup = (collect(c[1] for c in cols)...,) |> typeof
+    nametup = (names...,)
+    namedtupletype = NamedTuple{nametup}{datatypetup}
+    rows = newrows(columnlength)
+    for i in 1:columnlength
+        rows[i] = namedtupletype(([c[i] for c in cols]...,))
+    end
+    return RowTable(rows, CIndex(names))
 end
 
 """
@@ -138,6 +161,7 @@ function RowTable(df::DataFrames.DataFrame; tuples=false)
     end
     RowTable(arr, copy(names(df)))
 end
+
 
 ##############################################################################
 ##
@@ -170,7 +194,7 @@ end
 Base.getindex(rt::RowTable, ri::Integer, cis::AbstractVector{T}) where T<:Symbol =
     rows(rt)[ri][[cindex(rt)[ci] for ci in cis]]
 
-### Return a row as a Vector
+### Return a row, vector or Tuple
 Base.getindex(rt::RowTable, ri::Integer, ::Colon) = rt.rows[ri]
 
 ## Return slice as RowTable

@@ -23,7 +23,6 @@ Base.names(c::CIndex) = c.names
 ### CIndex constructors
 
 CIndex() = CIndex(Symbol[])
-
 CIndex(names::Tuple, smap) = CIndex([names...], smap)
 CIndex(names::Tuple) = CIndex([names...])
 
