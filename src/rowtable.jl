@@ -70,7 +70,7 @@ Construct a `0x0` `RowTable`
 RowTable() = RowTable(newrows(), CIndex())
 
 ## We did not use the type information afterall.
-const _NameTypes = Union{AbstractVector{S} where S<:Union{Symbol, AbstractString}}
+const _NameTypes = Union{AbstractVector{S} where S<:Union{Symbol, AbstractString}, Tuple}
 
 function _RowTable(a, keynames)
     isempty(a) && return RowTable(newrows(), CIndex(map(Symbol, keynames))) # JSON keys are strings
@@ -105,9 +105,11 @@ function RowTable(a::AbstractVector)
 end
 
 """
-    RowTable(a::AbstractVector, keynames::Vector{Symbol})
+    RowTable(a::AbstractVector, keynames)
 
 Construct a `RowTable` from a vector of rows `a`, and `keynames`.
+If `keynames` is a `Vector`, then the rows are `Vectors`.
+If `keynames` is a  `Tuple`, they are `Tuple`s.
 
 `RowTable([], keynames)` constructs a `RowTable` with no rows.
 """

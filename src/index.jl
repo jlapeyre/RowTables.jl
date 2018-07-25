@@ -24,6 +24,9 @@ Base.names(c::CIndex) = c.names
 
 CIndex() = CIndex(Symbol[])
 
+CIndex(names::Tuple, smap) = CIndex([names...], smap)
+CIndex(names::Tuple) = CIndex([names...])
+
 """
     CIndex(names::Vector{Symbol})::CIndex
 
