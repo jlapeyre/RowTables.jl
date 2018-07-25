@@ -51,12 +51,18 @@ let
         @test rt[:,:b] == [1, 4, 6, 8, 4]
         @test rt[:,:b] == rt[:,2]
         @test rt[:,:a] == rt[:,1]
+        @test rt[1, 2:3] == [1, 7]
         # Construct from array of arrays.
         @test RowTable(rows(rt), [:a, :b, :c]) == rt
 
         rs = Any[[2, 7], [1, 8], [9, 4], [10, 7], [10, 3]]
         @test RowTable(rs, [:a, :c]) == rt[:,[:a, :c]]
         @test RowTable([[4, 8], [6, 4], [8, 7]], [:b, :c]) == rt[2:4, [:b,:c]]
+    end
+
+    @testset "named tuples" begin
+        @test RowTable(cols=[[1,2], [3,4]], names = [:a, :b])[1,:] == (a = 1, b = 3)
+        @test RowTable(cols=[[1,2], [3,4]], names = [:a, :b], tuples=false)[1,:] == [1, 3]
     end
 
     @testset "iteration" begin

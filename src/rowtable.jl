@@ -63,18 +63,10 @@ Base.:(==)(rt1::RowTable, rt2::RowTable) = (cindex(rt1) == cindex(rt2) && rows(r
 
 newrows(n::Integer=0) = Vector{Any}(undef, n)
 
-# """
-#     RowTable()
-
-# Construct a `0x0` `RowTable`
-# """
-## This is now covered by the named tuples constructor
-## RowTable() = RowTable(newrows(), CIndex())
-
 ## We did not use the type information afterall.
 const _NameTypes = Union{AbstractVector{S} where S<:Union{Symbol, AbstractString}, Tuple}
 
-function _RowTable(a, keynames)
+function _RowTable(a::AbstractVector{T}, keynames) where {T <: AbstractDict}
     isempty(a) && return RowTable(newrows(), CIndex(map(Symbol, keynames))) # JSON keys are strings
     l = length(first(a))
     all(x -> length(x) == l, a) || throw(DimensionMismatch("All dictionaries must be of the same length"))
@@ -211,8 +203,11 @@ function Base.getindex(rt::RowTable, ri::AbstractVector, ci::ColInd)
 end
 
 ## Return a slice of a row as a Vector
-Base.getindex(rt::RowTable, ri::Integer, cis::AbstractVector{T}) where T<:Symbol =
+Base.getindex(rt::RowTable, ri::Integer, cis::AbstractVector{T}) where {T <: Symbol} =
     rows(rt)[ri][[cindex(rt)[ci] for ci in cis]]
+
+Base.getindex(rt::RowTable, ri::Integer, cis::AbstractVector{T}) where {T <: Integer} =
+    rows(rt)[ri][cis]
 
 ### Return a row, vector or Tuple
 Base.getindex(rt::RowTable, ri::Integer, ::Colon) = rt.rows[ri]
