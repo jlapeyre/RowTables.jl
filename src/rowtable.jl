@@ -139,7 +139,7 @@ Base.getindex(rt::RowTable, ri::Integer, ::Colon) = rt.rows[ri]
 
 ## Return slice as RowTable
 ## Following method calls the next method with integer arguments
-Base.getindex(rt::RowTable, ri::AbstractVector{T}, ci::AbstractVector{V}) where {T<:Integer,V<:Symbol} =
+Base.getindex(rt::RowTable, ri::AbstractVector{T}, ci::AbstractVector{V}) where {T<:Integer, V<:Symbol} =
     Base.getindex(rt, ri, [cindex(rt)[s] for s in ci])
 
 ## Return rectangular slice in both dimensions as RowTable
