@@ -302,13 +302,13 @@ Base.deepcopy(rt::RowTable) = RowTable(deepcopy(rows(rt)), deepcopy(cindex(rt)))
 ## DataFrames does not define iterating over a DataFrame, rather requires
 ## specifying rows or columns
 
-for f in (:length, :start, :endof, :iterate)
+for f in (:length, :iterate)
     @eval begin
         (Base.$f)(rt::RowTable) = (Base.$f)(rows(rt))
     end
 end
 
-for f in (:next, :done, :iterate)
+for f in (:iterate,)
     @eval begin
         (Base.$f)(rt::RowTable, args...) = (Base.$f)(rows(rt), args...)
     end
@@ -316,7 +316,7 @@ end
 
 ### Transform
 
-for f in (:deleteat!, :push!, :insert!, :unshift!, :append!, :prepend!, :splice!, :permute!)
+for f in (:deleteat!, :push!, :pushfirst!, :insert!, :append!, :prepend!, :splice!, :permute!)
     @eval begin
         (Base.$f)(rt::RowTable, args...) = (($f)(rows(rt), args...); rt)
     end
